@@ -1,0 +1,302 @@
+import { test, Page, Locator } from '@playwright/test';
+import { allure } from 'allure-playwright';
+import { saveElement, getElement } from '../db/elementRepo';
+import { findWithFallback, buildLocator, isValidLocator } from './fallBackEngine';
+import {
+  buildSmartLocatorBundle,
+  captureElementScreenshot,
+  captureFullPageScreenshot,
+  getElementOuterHTML,
+  getMinimalFullDOM,
+} from '../../utils/selfHealing';
+import { beginFlow, logStep, endFlow } from '../../src/reporting/flowTracker';
+
+/* ------------------------------------------------------------------ *
+ *  Pacing
+ * ------------------------------------------------------------------ */
+export const PACE = { micro: 500, short: 1000, medium: 1500 } as const;
+
+export async function settle(page: Page, ms: number = PACE.short): Promise<void> {
+  await page.waitForTimeout(ms);
+}
+
+/* ------------------------------------------------------------------ *
+ *  First-visible candidate resolver (capture phase)
+ * ------------------------------------------------------------------ */
+export async function firstVisible(
+  page: Page,
+  candidates: Locator[],
+  timeout: number = 8000
+): Promise<Locator> {
+  const deadline = Date.now() + timeout;
+
+  while (Date.now() < deadline) {
+    for (const candidate of candidates) {
+      try {
+        if (await candidate.first().isVisible()) {
+          return candidate.first();
+        }
+      } catch {
+        /* keep trying the next candidate */
+      }
+    }
+    await page.waitForTimeout(250);
+  }
+
+  return candidates[0].first();
+}
+
+/* ------------------------------------------------------------------ *
+ *  Baseline capture — persists primary + smart bundle + context
+ * ------------------------------------------------------------------ */
+export async function captureElement(
+  page: Page,
+  elementName: string,
+  locator: Locator,
+  primaryLocatorStr: string
+): Promise<void> {
+  try {
+    await locator.waitFor({ state: 'visible', timeout: 8000 });
+
+    const bundle = await buildSmartLocatorBundle(locator, elementName);
+
+    const [elementShot, fullPageShot, outerHTML, contextDom] = await Promise.all([
+      captureElementScreenshot(locator).catch(() => null),
+      captureFullPageScreenshot(page).catch(() => null),
+      getElementOuterHTML(locator).catch(() => ''),
+      getMinimalFullDOM(page).catch(() => ''),
+    ]);
+
+    await saveElement({
+      elementName,
+      pageUrl: page.url(),
+      primaryLocator: primaryLocatorStr,
+      smartLocators: bundle.smartLocators,
+      meta: bundle.meta,
+      outerHTML,
+      context_dom: contextDom,
+      elementScreenshot: elementShot,
+      fullPageScreenshot: fullPageShot,
+    });
+
+    allure.attachment(
+      'Smart Locators',
+      JSON.stringify(bundle.smartLocators, null, 2),
+      'application/json'
+    );
+    allure.attachment(
+      'Element Metadata',
+      JSON.stringify(bundle.meta, null, 2),
+      'application/json'
+    );
+    allure.attachment('Outer HTML', outerHTML, 'text/html');
+
+    if (elementShot) {
+      allure.attachment('Element Screenshot', Buffer.from(elementShot), 'image/jpeg');
+    }
+    if (fullPageShot) {
+      allure.attachment('Full Page Screenshot', Buffer.from(fullPageShot), 'image/jpeg');
+    }
+
+    console.log(`captured: ${elementName}`);
+  } catch {
+    console.log(`capture failed: ${elementName}`);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  DB / Smart-locator resolution
+ * ------------------------------------------------------------------ */
+type ResolvedLocator = {
+  locator: Locator;
+  strategy: string;
+};
+
+export async function resolveFromDB(
+  page: Page,
+  elementName: string
+): Promise<ResolvedLocator | null> {
+  const row = await getElement(elementName);
+  if (!row) return null;
+
+  // ---- Tier 1: stored primary ----
+  if (row.primary_locator) {
+    const primary = buildLocator(page, row.primary_locator);
+
+    if (primary && (await isValidLocator(primary))) {
+      logStep({
+        tier: 'db',
+        action: 'DB Primary Locator',
+        locator: row.primary_locator,
+        status: 'success',
+      });
+
+      return { locator: primary, strategy: 'db-primary' };
+    }
+
+    logStep({
+      tier: 'db',
+      action: 'DB Primary Locator',
+      locator: row.primary_locator,
+      status: 'failed',
+      reason: 'Primary locator invalid',
+    });
+  }
+
+  // ---- Tier 2: smart locators, in priority order ----
+  const smart =
+    typeof row.smart_locators === 'string'
+      ? JSON.parse(row.smart_locators)
+      : row.smart_locators;
+
+  const priority = [
+    'role',
+    'testId',
+    'label',
+    'placeholder',
+    'text',
+    'alt',
+    'title',
+    'css',
+    'xpath',
+  ];
+
+  for (const key of priority) {
+    const locStr = smart?.[key];
+    if (!locStr) continue;
+
+    const built = buildLocator(page, locStr);
+
+    if (built && (await isValidLocator(built))) {
+      logStep({
+        tier: 'smart',
+        action: `Smart Locator (${key})`,
+        locator: locStr,
+        status: 'success',
+      });
+
+      return { locator: built, strategy: key };
+    }
+  }
+
+  return null;
+}
+
+/* ------------------------------------------------------------------ *
+ *  step() — capture → DB/smart → AI heal, with flow tracking
+ * ------------------------------------------------------------------ */
+export async function step(
+  page: Page,
+  elementName: string,
+  captureCandidates: Locator[],
+  primaryLocator: string,
+  action: (loc: Locator) => Promise<void>,
+  label: string
+): Promise<void> {
+  beginFlow(elementName, test.info().title, page.url());
+
+  await test
+    .step(label, async () => {
+      const existing = await getElement(elementName);
+
+      // ---- NEW ELEMENT: baseline capture ----
+      if (!existing) {
+        await test.step('Baseline Capture', async () => {
+          const el = await firstVisible(page, captureCandidates);
+          await captureElement(page, elementName, el, primaryLocator);
+          await action(el);
+
+          logStep({
+            tier: 'db',
+            action: 'Primary Locator',
+            locator: primaryLocator,
+            status: 'success',
+          });
+          endFlow({
+            finalTier: 'db',
+            finalLocator: primaryLocator,
+            healed: false,
+            writtenBack: false,
+          });
+        });
+        return;
+      }
+
+      // ---- DB / SMART RESOLUTION ----
+      await test.step('Locator Resolution', async () => {
+        const resolved = await resolveFromDB(page, elementName);
+
+        if (resolved) {
+          await resolved.locator.scrollIntoViewIfNeeded();
+          await action(resolved.locator);
+
+          const finalTier = resolved.strategy === 'db-primary' ? 'db' : 'smart';
+
+          endFlow({
+            finalTier,
+            finalLocator: resolved.locator.toString(),
+            healed: false,
+            writtenBack: false,
+          });
+
+          // Signal success up the chain so the catch block skips AI healing.
+          throw { success: true };
+        }
+
+        throw new Error('Locator resolution failed');
+      });
+    })
+    .catch(async (e: any) => {
+      if (e?.success) return;
+
+      logStep({ tier: 'db', action: 'Locator Resolution', status: 'failed' });
+
+      // ---- AI HEALING ----
+      await test.step(`${elementName} - AI Healing`, async () => {
+        let healed: any;
+
+        await test.step('Generate AI Locator', async () => {
+          healed = await findWithFallback(
+            page,
+            elementName,
+            page.locator('body'),
+            'ann-taylor page'
+          );
+
+          allure.attachment(
+            'Healing Result',
+            JSON.stringify(
+              { element: elementName, strategy: healed.strategy ?? 'AI' },
+              null,
+              2
+            ),
+            'application/json'
+          );
+        });
+
+        await test.step('Validate AI Locator', async () => {
+          if (!(await isValidLocator(healed.locator))) {
+            throw new Error(`Could not heal ${elementName}`);
+          }
+        });
+
+        await test.step('Execute Healed Action', async () => {
+          await healed.locator.scrollIntoViewIfNeeded();
+          await action(healed.locator);
+
+          logStep({
+            tier: 'ai',
+            action: 'AI Healing',
+            locator: healed.locator.toString(),
+            status: 'success',
+          });
+          endFlow({
+            finalTier: 'ai',
+            finalLocator: healed.locator.toString(),
+            healed: true,
+            writtenBack: true,
+          });
+        });
+      });
+    });
+}
