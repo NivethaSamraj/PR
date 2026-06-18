@@ -19,6 +19,9 @@ import type {
  *  therefore appears here — fixing "FLOW COUNT = 1".
  * ------------------------------------------------------------------ */
 
+
+console.log('=== SelfHealingReporter v2 (merge-all-shards) LOADED ===');
+
 type FlowTier = 'db' | 'smart' | 'ai';
 
 interface FlowStep {
@@ -57,7 +60,7 @@ function esc(s: unknown): string {
 
 export default class SelfHealingReporter implements Reporter {
   onBegin(_config: FullConfig, _suite: Suite): void {
-    console.log('SELF HEALING REPORTER STARTED');
+    console.log('SELF HEALING REPORTER STARTED [v2 merge-all-shards]');
     // Clear stale shards from a previous run. This runs in the MAIN process
     // before any worker starts, so it never races worker writes.
     try {
