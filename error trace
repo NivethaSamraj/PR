@@ -1,6 +1,3 @@
-
-PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> start self-healing-output\index.html                  
-PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> npx playwright test tests/Homepage.spec.ts --project=chrome --workers=1 --headed
 REPORTER FILE LOADED
 
 Running 1 test using 1 worker
@@ -9,7 +6,12 @@ Old flow files cleared
 SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
      1 …or — Self-Healing Funnel › homepage to bag interactions › dress_product - AI Healing › Generate AI Locator
+[FLOW BEGIN] search_toggle — total tracked: 1
  WARNING  Locator matched 0 elements
+[FLOW END] search_toggle -> tier=smart
+[FLOW BEGIN] search_input — total tracked: 2
+[FLOW END] search_input -> tier=db
+[FLOW BEGIN] dress_product — total tracked: 3
  WARNING  Locator matched 0 elements
 [Test        ] ann-taylor page
 [Element     ] dress_product
@@ -36,9 +38,9 @@ SELF HEALING REPORTER LOADED
  AI       Collecting screenshots and DOM context
  AI       Sending healing request to AI model
 blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
- AI       Locator      : getByRole('link', { name: /V-Neck Ruffle Maxi Dress/i })
+ AI       Locator      : getByRole('link', { name: /v-neck ruffle maxi dress/i })
  AI       Confidence   : 1
- AI       Reason       : The target element is the product card for 'V-Neck Ruffle Maxi Dress'. In the current DOM and screenshot, this product is visually and structurally present as a link with the accessible name 'V-Neck Ruffle Maxi Dress'. This locator is unique, stable, and reliable as it matches the visible product name and role, and there are no other links with this name on the page.
+ AI       Reason       : The target element is the product card for the 'V-Neck Ruffle Maxi Dress'. In the CURRENT page screenshot and DOM, the product name appears as the accessible name for the link. Using getByRole('link', { name: /v-neck ruffle maxi dress/i }) is unique, stable, and reliable, as it matches the visible product name and links directly to the product details, ensuring the correct element is selected.
  WARNING  Locator matched 3 elements (3 visible) — SOFT MATCH, using .first(). Verify this is intended for this element.
 
 
@@ -46,20 +48,28 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
  HEALING SUCCESS
 ──────────────────────────────────────────────────
  SUCCESS  AI locator validated successfully
-[Final Locator] getByRole('link', { name: /V-Neck Ruffle Maxi Dress/i })
+[Final Locator] getByRole('link', { name: /v-neck ruffle maxi dress/i })
 [Confidence  ] 1
 
 
 ════════════════════════════════════════════════════════════
  HEALING COMPLETED
 ════════════════════════════════════════════════════════════
-  ✓  1 …ome] › tests\Homepage.spec.ts:6:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.4m)
+  ✓  1 …ome] › tests\Homepage.spec.ts:6:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.9m)
+[FLOW END] dress_product -> tier=ai
 
-  1 passed (1.5m)
+  1 passed (2.0m)
 SELF HEALING REPORTER FINISHED
-Reading: flows-21172-1781805171547.json
+Reading: flows-19596-1781808462592.json
 Parsed flows: 1
 FLOW COUNT = 1
 Found 1 flows
 Dashboard created: self-healing-output\index.html
 HTML created: self-healing-output\index.html
+
+To open last HTML report run:
+
+  npx playwright show-report
+
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> start self-healing-output\index.html                  
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> 
