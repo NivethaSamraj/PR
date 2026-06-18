@@ -81,38 +81,6 @@ export function renderHtml(flows: HealFlow[], outDir: string): string {
     })
     .join("");
 
-  const buildTimelineSection = (title: string, color: string, items: HealFlow[]) => `
-<div class="timeline-group">
-  <div class="timeline-title" style="color:${color}">
-    ${title} (${items.length})
-  </div>
-  <div class="timeline-row">
-    ${
-      items.length
-        ? items
-            .map(
-              (f) => `
-          <div class="tl-chip" style="--c:${color}">
-            <span class="tl-name">
-              ${esc(displayNames[f.elementName] ?? f.elementName)}
-            </span>
-          </div>
-        `
-            )
-            .join("")
-        : '<span class="empty-tier">No Elements</span>'
-    }
-  </div>
-</div>
-`;
-
-  const timeline = `
-${buildTimelineSection("DB PRIMARY", "#2DD4A7", flows.filter((f) => f.finalTier === "db"))}
-${buildTimelineSection("SMART LOCATOR", "#F4B740", flows.filter((f) => f.finalTier === "smart"))}
-${buildTimelineSection("AI HEALED", "#FF6B6B", flows.filter((f) => f.finalTier === "ai"))}
-${buildTimelineSection("UNRESOLVED", "#6B7A99", flows.filter((f) => !f.finalTier))}
-`;
-
   const rows = flows
     .map((f, i) => {
       const tier = (f.finalTier ?? "unresolved") as TierKey;
@@ -228,21 +196,6 @@ ${buildTimelineSection("UNRESOLVED", "#6B7A99", flows.filter((f) => !f.finalTier
   .stat.accent .v{color:var(--db)}
   .section-h{font-family:var(--mono);font-size:12px;letter-spacing:.2em;
     text-transform:uppercase;color:var(--muted);margin:30px 0 14px}
-  .timeline{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
-  .tl-chip{display:flex;align-items:center;gap:9px;background:var(--panel);
-    border:1px solid var(--line);border-left:3px solid var(--c);
-    border-radius:9px;padding:9px 13px;font-size:13px}
-  .tl-tier{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
-    color:var(--c);text-transform:uppercase;font-weight:600}
-  .tl-name{color:var(--ink);font-weight:500}
-  .tl-wb{font-size:11px;color:var(--db);font-family:var(--mono)}
-  .timeline-group{margin-bottom:20px;}
-  .timeline-title{font-size:13px;font-weight:700;letter-spacing:.08em;margin-bottom:10px;}
-  .timeline-row{display:flex;flex-wrap:wrap;gap:10px;}
-  .empty-tier{color:#6B7A99;font-size:12px;}
-  .tl-chip{display:flex;align-items:center;gap:8px;padding:10px 14px;
-    background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c);
-    border-radius:8px;font-size:13px;}
   .top-actions{display:flex;align-items:center;gap:12px;}
   .theme-btn{border:none;cursor:pointer;padding:10px 16px;border-radius:10px;
     background:var(--panel);color:var(--ink);border:1px solid var(--line);
@@ -329,8 +282,6 @@ ${buildTimelineSection("UNRESOLVED", "#6B7A99", flows.filter((f) => !f.finalTier
   <div class="stat"><div class="v">${unresolvedN}</div><div class="l">Unresolved</div></div>
   <div class="stat"><div class="v">${resilience}%</div><div class="l">Resilience Score</div></div>
 </div>
-  <div class="section-h">Resolution Timeline · elements grouped by the tier that resolved them</div>
-  ${timeline}
   <div class="section-h">Element Detail · click a row to expand its tier trace</div>
   <div class="panel">
     <table class="main-t">
