@@ -1,3 +1,6 @@
+
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> start self-healing-output\index.html                                         
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> npx playwright test tests/Homepage.spec.ts --project=chrome --workers=1 --headed
 REPORTER FILE LOADED
 
 Running 1 test using 1 worker
@@ -5,7 +8,7 @@ Running 1 test using 1 worker
 Old flow files cleared
 SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
-     1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions
+     1 …tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › Search Dresses › Baseline Capture
 BEGIN FLOW: search_toggle
 SAVED ELEMENT: { name: 'search_toggle', hasOuterHTML: true, hasScreenshot: true }
 captured: search_toggle
@@ -16,72 +19,21 @@ BEGIN FLOW: search_input
 SAVED ELEMENT: { name: 'search_input', hasOuterHTML: true, hasScreenshot: true }
 captured: search_input
 END FLOW
-ENDING FLOW search_input null
+ENDING FLOW search_input db
 FLOW COUNT: 2
-  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.3m)
+  ✓  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (2.1m)
+BEGIN FLOW: dress_product
+SAVED ELEMENT: { name: 'dress_product', hasOuterHTML: true, hasScreenshot: true }
+captured: dress_product
+END FLOW
+ENDING FLOW dress_product db
+FLOW COUNT: 3
 
-
-  1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
-
-    CaptureFailedError: "search_input" was captured, but its action failed: page.waitForURL: Timeout 15000ms exceeded.
-    =========================== logs ===========================
-      "domcontentloaded" event fired
-    ============================================================
-
-       at core\healing\stepRunner.ts:507
-
-      505 |           } catch (actErr: any) {
-      506 |             if (actErr instanceof OverlayInterceptError) throw actErr;
-    > 507 |             throw new CaptureFailedError(
-          |                   ^
-      508 |               `"${elementName}" was captured, but its action failed: ` +
-      509 |                 `${actErr?.message ?? actErr}`
-      510 |             );
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:507:19
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:475:9
-        at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:460:3)
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:51:5
-
-    attachment #3: allureattach_87e18f32-59e4-41f1-af88-c3eb4678e7e2_Outer HTML (text/html) ────────
-    <button id="Sicon" class="search-icon-desktop ds-search-icon-desktop" type="button" aria-label="Search">
-                                    <img src="/on/demandware.static/Sites-AnnTaylor-Site/-/default/dw0dbdce92/images/ds-icons/search.svg" class="ds-h-auto ds-search-icon" alt="Search-desktop">
-          ...
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #8: allureattach_a15f2230-e419-4d15-b35d-a46c14833eda_Outer HTML (text/html) ────────
-    <input class="form-control search-field" id="Submit-search" type="text" name="q" value="" placeholder="What are you looking for?" role="combobox" aria-describedby="search-assistive-text" aria-haspopup="listbox" aria-owns="search-results" aria-expanded="false" aria-autocomplete="list" aria-activedesc...
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #11: screenshot (image/png) ─────────────────────────────────────────────────────────
-    test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #12: video (video/webm) ─────────────────────────────────────────────────────────────
-    test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\video.webm
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    Error Context: test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\error-context.md
-
-    attachment #14: trace (application/zip) ────────────────────────────────────────────────────────
-    test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
-    Usage:
-
-        npx playwright show-trace test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
-
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-  1 failed
-    [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
+  1 passed (2.2m)
 SELF HEALING REPORTER FINISHED
-Reading: flows-27128.json
-Parsed flows: 2
-FLOW COUNT = 2
-Found 2 flows
+Reading: flows-24208.json
+Parsed flows: 3
+FLOW COUNT = 3
+Found 3 flows
 Dashboard created: self-healing-output\index.html
 HTML created: self-healing-output\index.html
-
-To open last HTML report run:
-
-  npx playwright show-report
-
-PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> 
