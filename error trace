@@ -1,0 +1,126 @@
+ded
+REPORTER FILE LOADED
+
+Running 1 test using 1 worker
+
+Old flow files cleared
+SELF HEALING REPORTER STARTED
+SELF HEALING REPORTER LOADED
+     1 …spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › search_toggle - AI Healing › Generate AI Locator
+BEGIN FLOW: search_toggle
+ WARNING  Locator matched 0 elements
+[Test        ] ann-taylor page
+[Element     ] search_toggle
+[Page        ] https://sfqa.anntaylor.com/
+[AI SELF-HEALING STARTED] Azure_OpenAI
+
+
+──────────────────────────────────────────────────
+ STEP 1 — DATABASE PRIMARY LOCATOR
+──────────────────────────────────────────────────
+[Trying      ] [data-testid="search-icon"]
+ WARNING  Locator matched 0 elements
+ FAILED   DB Primary locator failed
+
+
+──────────────────────────────────────────────────
+ STEP 2 — SMART LOCATOR FALLBACK
+──────────────────────────────────────────────────
+[Strategy    ] role
+[Locator     ] getByRole('button', { name: 'Search', exact: true })
+[Result      ] SUCCESS
+ SUCCESS  Element healed using role
+
+
+════════════════════════════════════════════════════════════
+ HEALING COMPLETED
+════════════════════════════════════════════════════════════
+  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (2.7m)
+
+
+  1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
+
+    TimeoutError: locator.click: Timeout 60000ms exceeded.
+    Call log:
+      - waiting for getByRole('button', { name: 'Search' })
+        - locator resolved to <button id="Sicon" type="button" aria-label="Search" class="search-icon-desktop ds-search-icon-desktop">…</button>
+      - attempting click action
+        2 × waiting for element to be visible, enabled and stable
+          - element is visible, enabled and stable
+          - scrolling into view if needed
+          - done scrolling
+          - <div class="modalBg welcomeBg "></div> from <div id="esw-landing-page" esw-landing-url="/on/demandware.store/Sites-AnnTaylor-Site/default/EShopWorld-GetEswLandingPage">…</div> subtree intercepts pointer events
+        - retrying click action
+        - waiting 20ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      - retrying click action
+        - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is visible, enabled and stable
+        - scrolling into view if needed
+        - done scrolling
+        - <div class="modalBg welcomeBg "></div> from <div id="esw-landing-page" esw-landing-url="/on/demandware.store/Sites-AnnTaylor-Site/default/EShopWorld-GetEswLandingPage">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 100ms
+        - waiting for element to be visible, enabled and stable
+        - element is not stable
+      88 × retrying click action
+           - waiting 500ms
+           - waiting for element to be visible, enabled and stable
+           - element is visible, enabled and stable
+           - scrolling into view if needed
+           - done scrolling
+           - <div class="modalBg welcomeBg "></div> from <div id="esw-landing-page" esw-landing-url="/on/demandware.store/Sites-AnnTaylor-Site/default/EShopWorld-GetEswLandingPage">…</div> subtree intercepts pointer events
+      - retrying click action
+        - waiting 500ms
+
+
+      30 |       '[data-testid="search-icon"]',
+      31 |       async (loc) => {
+    > 32 |         await loc.click();
+         |                   ^
+      33 |       },
+      34 |       'Open Search'
+      35 |     );
+        at action (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:32:19)
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:285:17
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:283:9
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:255:7
+        at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:198:3)
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:22:5
+
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\error-context.md
+
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
+SELF HEALING REPORTER FINISHED
+Reading: flows-14660-1781765812860.json
+Parsed flows: 1
+FLOW COUNT = 1
+Found 1 flows
+Dashboard created: self-healing-output\index.html
+HTML created: self-healing-output\index.html
+
+To open last HTML report run:
+
+  npx playwright show-report
+
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> start self-healing-output\index.html                                         
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> 
