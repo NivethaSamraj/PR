@@ -1,21 +1,25 @@
+REPORTER FILE LOADED
 
 Running 1 test using 1 worker
 
 Old flow files cleared
 SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
-     1 ….spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › search_input - AI Healing › Generate AI Locator
+     1 …Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › Open First Product › Locator Resolution
 BEGIN FLOW: search_toggle
-SAVED ELEMENT: { name: 'search_toggle', hasOuterHTML: true, hasScreenshot: true }
-captured: search_toggle
+ WARNING  Locator matched 0 elements
 END FLOW
-ENDING FLOW search_toggle db
+ENDING FLOW search_toggle smart
 FLOW COUNT: 1
 BEGIN FLOW: search_input
-SAVED ELEMENT: { name: 'search_input', hasOuterHTML: true, hasScreenshot: true }
-captured: search_input
+END FLOW
+ENDING FLOW search_input db
+FLOW COUNT: 2
+BEGIN FLOW: dress_product
+ WARNING  Locator matched 0 elements
+     1 …spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › dress_product - AI Healing › Generate AI Locator
 [Test        ] ann-taylor page
-[Element     ] search_input
+[Element     ] dress_product
 [Page        ] https://sfqa.anntaylor.com/search?q=dress&lang=default
 [AI SELF-HEALING STARTED] Azure_OpenAI
 
@@ -23,7 +27,7 @@ captured: search_input
 ──────────────────────────────────────────────────
  STEP 1 — DATABASE PRIMARY LOCATOR
 ──────────────────────────────────────────────────
-[Trying      ] input[data-search-field]:visible >> nth=0
+[Trying      ] [data-testid*="product"]
  WARNING  Locator matched 0 elements
  FAILED   DB Primary locator failed
 
@@ -31,26 +35,6 @@ captured: search_input
 ──────────────────────────────────────────────────
  STEP 2 — SMART LOCATOR FALLBACK
 ──────────────────────────────────────────────────
-[Strategy    ] role
-[Locator     ] getByRole('combobox', { name: 'Search : Enter Keyword or Item Number', exact: true })
- WARNING  Locator matched 0 elements
-[Result      ] FAILED
-[Strategy    ] css
-[Locator     ] #Submit-search
- WARNING  Locator validation failed: locator.waitFor: Timeout 3000ms exceeded.
-Call log:
-  - waiting for locator('#Submit-search') to be visible
-    11 × locator resolved to hidden <input name="q" value="" type="text" autofocus="" role="combobox" id="Submit-search" autocomplete="off" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list" aria-activedescendant="" aria-owns="search-results" aria-controls="search-results" class="form-control search-field" placeholder="What are you looking for?" aria-describedby="search-assistive-text" aria-label="Search : Enter Keyword or Item Number"/>
-
-[Result      ] FAILED
-[Strategy    ] xpath
-[Locator     ] //*[@id="Submit-search"]
- WARNING  Locator validation failed: locator.waitFor: Timeout 3000ms exceeded.
-Call log:
-  - waiting for locator('//*[@id="Submit-search"]') to be visible
-    11 × locator resolved to hidden <input name="q" value="" type="text" autofocus="" role="combobox" id="Submit-search" autocomplete="off" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list" aria-activedescendant="" aria-owns="search-results" aria-controls="search-results" class="form-control search-field" placeholder="What are you looking for?" aria-describedby="search-assistive-text" aria-label="Search : Enter Keyword or Item Number"/>
-
-[Result      ] FAILED
 
 
 ──────────────────────────────────────────────────
@@ -59,60 +43,72 @@ Call log:
  AI       Collecting screenshots and DOM context
  AI       Sending healing request to AI model
 blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
- AI       Locator      : getByPlaceholder('What are you looking for?')
+ AI       Locator      : getByRole('link', { name: /v-neck ruffle maxi dress/i })
  AI       Confidence   : 1
- AI       Reason       : The search input in the OLD element has the placeholder 'What are you looking for?', and in the CURRENT DOM this input is still present with the same placeholder. The input is visually confirmed in the CURRENT FULL PAGE SCREENSHOT at the top, matching the old location and appearance. This placeholder is unique and stable for the search input.
- WARNING  Locator matched 2 elements
+ AI       Reason       : The target is the product card for 'V-Neck Ruffle Maxi Dress'. In the CURRENT screenshot and DOM, the product name appears as the accessible name for the link. This is unique, stable, and matches the visual and structural context of the original element.
+ WARNING  Locator matched 3 elements (3 visible) — SOFT MATCH, using .first(). Verify this is intended for this element.
 
 
 ──────────────────────────────────────────────────
- HEALING FAILED
+ HEALING SUCCESS
 ──────────────────────────────────────────────────
- FAILED   AI locator is not valid on current page
-  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.4m)
+ SUCCESS  AI locator validated successfully
+[Final Locator] getByRole('link', { name: /v-neck ruffle maxi dress/i })
+[Confidence  ] 1
+
+
+════════════════════════════════════════════════════════════
+ HEALING COMPLETED
+════════════════════════════════════════════════════════════
+     1 …ge.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › dress_size - AI Healing › Generate AI Locator
+END FLOW
+ENDING FLOW dress_product ai
+FLOW COUNT: 3
+BEGIN FLOW: dress_size
+[Test        ] ann-taylor page
+[Element     ] dress_size
+[Page        ] https://sfqa.anntaylor.com/clothing/dresses/cata000012/v-neck-ruffle-maxi-dress/857360.html?priceSort=DES
+[AI SELF-HEALING STARTED] Azure_OpenAI
+
+
+──────────────────────────────────────────────────
+ STEP 1 — DATABASE PRIMARY LOCATOR
+──────────────────────────────────────────────────
+ FAILED   No locator data found for dress_size
+  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.6m)
 
 
   1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 
-    Error: All locator strategies including AI failed for search_input
+    Error: No locator data found for dress_size
 
-       at core\healing\fallBackEngine.ts:541
+       at core\healing\fallBackEngine.ts:70
 
-      539 |     });
-      540 |
-    > 541 |     throw new Error(
-          |           ^
-      542 |       `All locator strategies including AI failed for ${elementName}`
-      543 |     );
-      544 |   }
-        at findWithFallback (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\fallBackEngine.ts:541:11)
+      68 |     });
+      69 |
+    > 70 |     throw new Error(
+         |           ^
+      71 |       `No locator data found for ${elementName}`
+      72 |     );
+      73 |   }
+        at findWithFallback (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\fallBackEngine.ts:70:11)
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:432:20
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:431:9
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:428:7
         at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:352:3)
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:46:5
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:120:5
 
-    attachment #3: allureattach_d2041c06-ae2b-429f-b40c-21e56349d486_Outer HTML (text/html) ────────
-    <button id="Sicon" class="search-icon-desktop ds-search-icon-desktop" type="button" aria-label="Search">
-                                    <img src="/on/demandware.static/Sites-AnnTaylor-Site/-/default/dw0dbdce92/images/ds-icons/search.svg" class="ds-h-auto ds-search-icon" alt="Search-desktop">
-          ...
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #8: allureattach_82733c5b-4c0d-4001-8bfc-f4d6cbd31df7_Outer HTML (text/html) ────────
-    <input class="form-control search-field" id="Submit-search" type="text" name="q" value="" placeholder="What are you looking for?" role="combobox" aria-describedby="search-assistive-text" aria-haspopup="listbox" aria-owns="search-results" aria-expanded="false" aria-autocomplete="list" aria-activedesc...
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #11: screenshot (image/png) ─────────────────────────────────────────────────────────
+    attachment #2: screenshot (image/png) ──────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #12: video (video/webm) ─────────────────────────────────────────────────────────────
+    attachment #3: video (video/webm) ──────────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\error-context.md
 
-    attachment #14: trace (application/zip) ────────────────────────────────────────────────────────
+    attachment #5: trace (application/zip) ─────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
     Usage:
 
@@ -123,12 +119,12 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
   1 failed
     [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 SELF HEALING REPORTER FINISHED
-Reading: flows-15576-1781771959475.json
-Parsed flows: 1
-Reading: flows-15576.json
-Parsed flows: 1
-FLOW COUNT = 2
-Found 2 flows
+Reading: flows-24256-1781773660338.json
+Parsed flows: 2
+Reading: flows-24256.json
+Parsed flows: 3
+FLOW COUNT = 5
+Found 5 flows
 Dashboard created: self-healing-output\index.html
 HTML created: self-healing-output\index.html
 
@@ -136,4 +132,5 @@ To open last HTML report run:
 
   npx playwright show-report
 
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> start self-healing-output\index.html                                         
 PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> 
