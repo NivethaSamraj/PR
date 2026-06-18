@@ -26,6 +26,57 @@ export async function buildSmartLocatorBundle(
   };
 }
 
+/* ------------------------------------------------------------------ *
+ *  Twin-aware uniqueness helpers
+ *
+ *  Some pages render the same logical control twice (e.g. a mobile and
+ *  a desktop search box, both name="q"). A selector that matches both
+ *  is NOT unique by count, but if exactly one of the matches is visible
+ *  it is still perfectly usable — we just append " >> visible=true" so
+ *  the locator resolves to the visible twin at action time.
+ *
+ *  countVisible() returns how many matches are visible; the *Resolved
+ *  helpers return either:
+ *    - 'unique'        → exactly one match, use selector as-is
+ *    - 'visible-one'   → multiple matches, exactly one visible, append suffix
+ *    - 'no'            → not usable
+ * ------------------------------------------------------------------ */
+type UniqueVerdict = 'unique' | 'visible-one' | 'no';
+
+async function countVisible(locator: Locator): Promise<number> {
+  const count = await locator.count();
+  let visible = 0;
+  for (let i = 0; i < count; i++) {
+    try {
+      if (await locator.nth(i).isVisible()) visible++;
+    } catch {
+      /* ignore */
+    }
+  }
+  return visible;
+}
+
+async function verdictForLocator(locator: Locator): Promise<UniqueVerdict> {
+  try {
+    const count = await locator.count();
+    if (count === 1) return 'unique';
+    if (count > 1) {
+      const visible = await countVisible(locator);
+      return visible === 1 ? 'visible-one' : 'no';
+    }
+    return 'no';
+  } catch {
+    return 'no';
+  }
+}
+
+/** Append the visible-twin suffix when needed; pass through otherwise. */
+function withVerdict(selector: string, verdict: UniqueVerdict): string | undefined {
+  if (verdict === 'unique') return selector;
+  if (verdict === 'visible-one') return `${selector} >> visible=true`;
+  return undefined;
+}
+
 async function generateAncestorXpath(
   page: Page,
   meta: any
@@ -684,12 +735,14 @@ export async function generateSmartLocators(
   if (
     role &&
     name &&
-    isCleanValue(name, 'aria-label') &&
-    await isUniqueRole(page, role, name)
+    isCleanValue(name, 'aria-label')
   ) {
-
-    locators.role =
-      `getByRole('${role}', { name: '${escapeLocatorValue(name)}', exact: true })`;
+    const roleLoc = page.getByRole(role as any, { name, exact: true });
+    const verdict = await verdictForLocator(roleLoc);
+    if (verdict !== 'no') {
+      const base = `getByRole('${role}', { name: '${escapeLocatorValue(name)}', exact: true })`;
+      locators.role = withVerdict(base, verdict);
+    }
   }
 
   // =====================================================
@@ -703,16 +756,11 @@ export async function generateSmartLocators(
       'data-testid'
     )
   ) {
-
-    const count =
-      await page
-        .getByTestId(meta.testId)
-        .count();
-
-    if (count === 1) {
-
-      locators.testId =
-        `getByTestId('${escapeLocatorValue(meta.testId)}')`;
+    const testIdLoc = page.getByTestId(meta.testId);
+    const verdict = await verdictForLocator(testIdLoc);
+    if (verdict !== 'no') {
+      const base = `getByTestId('${escapeLocatorValue(meta.testId)}')`;
+      locators.testId = withVerdict(base, verdict);
     }
   }
 
@@ -745,15 +793,14 @@ export async function generateSmartLocators(
     isCleanValue(
       meta.placeholder,
       'placeholder'
-    ) &&
-    await isUniquePlaceholder(
-      page,
-      meta.placeholder
     )
   ) {
-
-    locators.placeholder =
-      `getByPlaceholder('${escapeLocatorValue(meta.placeholder)}', { exact: true })`;
+    const phLoc = page.getByPlaceholder(meta.placeholder, { exact: true });
+    const verdict = await verdictForLocator(phLoc);
+    if (verdict !== 'no') {
+      const base = `getByPlaceholder('${escapeLocatorValue(meta.placeholder)}', { exact: true })`;
+      locators.placeholder = withVerdict(base, verdict);
+    }
   }
 
   // =====================================================
@@ -819,18 +866,16 @@ export async function generateSmartLocators(
   // =====================================================
 
   locators.css =
-    locators.css =
     await generateStableCss(
       page,
       meta
     );
 
   if (!locators.css) {
-    await generateScopedCss(
+    locators.css = await generateScopedCss(
       page,
       meta
     );
-
   }
 
   // =====================================================
@@ -845,7 +890,7 @@ export async function generateSmartLocators(
 
   if (!locators.xpath) {
 
-    await generateAncestorXpath(
+    locators.xpath = await generateAncestorXpath(
       page,
       meta
     );
@@ -925,12 +970,14 @@ async function generateStableCss(
     {
       attr: 'alt',
       value: meta.alt
-    },
-
-    {
-      attr: 'id',
-      value: meta.id
     }
+
+    // NOTE: bare 'id' intentionally removed as a CSS candidate.
+    // Ann Taylor's search input id flips between renders
+    // (#Submit-search vs none), so an id-based CSS selector is
+    // unstable. id is still allowed in XPath generation below only
+    // when isCleanValue passes, but it is no longer the preferred
+    // CSS strategy.
   ];
 
   for (const candidate of candidates) {
@@ -946,17 +993,11 @@ async function generateStableCss(
     }
 
     const selector =
-      candidate.attr === 'id'
-        ? `#${candidate.value}`
-        : `${meta.tag}[${candidate.attr}="${candidate.value}"]`;
+      `${meta.tag}[${candidate.attr}="${candidate.value}"]`;
 
-    if (
-      await isUniqueCss(
-        page,
-        selector
-      )
-    ) {
-      return selector;
+    const verdict = await verdictForLocator(page.locator(selector));
+    if (verdict !== 'no') {
+      return withVerdict(selector, verdict);
     }
   }
 
@@ -978,13 +1019,9 @@ async function generateStableCss(
       const selector =
         `${meta.tag}.${stableClass}`;
 
-      if (
-        await isUniqueCss(
-          page,
-          selector
-        )
-      ) {
-        return selector;
+      const verdict = await verdictForLocator(page.locator(selector));
+      if (verdict !== 'no') {
+        return withVerdict(selector, verdict);
       }
     }
   }
@@ -1115,6 +1152,8 @@ async function generateStableXpath(
     );
   }
 
+  // id kept only as a last-resort xpath candidate, still gated by
+  // isCleanValue (which rejects long/dynamic ids).
   if (
     meta.id &&
     isCleanValue(
@@ -1185,23 +1224,11 @@ function inferRole(meta: any): string | null {
 
   switch (tag) {
 
-    /**
-     * BUTTON
-     */
-
     case 'button':
       return 'button';
 
-    /**
-     * LINK
-     */
-
     case 'a':
       return 'link';
-
-    /**
-     * INPUT TYPES
-     */
 
     case 'input':
 
@@ -1237,23 +1264,11 @@ function inferRole(meta: any): string | null {
           return 'textbox';
       }
 
-    /**
-     * SELECT
-     */
-
     case 'select':
       return 'combobox';
 
-    /**
-     * TEXTAREA
-     */
-
     case 'textarea':
       return 'textbox';
-
-    /**
-     * IMAGE
-     */
 
     case 'img':
       return 'img';
@@ -1325,7 +1340,7 @@ export async function captureFullPageScreenshot(page: Page): Promise<Buffer> {
   return await page.screenshot({
     fullPage: true,
     type: 'jpeg',
-    quality: 70, // reduce size
+    quality: 70,
   });
 }
 
@@ -1334,7 +1349,6 @@ export async function getElementOuterHTML(locator: Locator): Promise<string> {
   return await locator.evaluate((el) => {
     const clone = el.cloneNode(true) as HTMLElement;
 
-    // Remove noisy attributes
     clone.removeAttribute('style');
 
     [...clone.attributes].forEach(attr => {
@@ -1354,12 +1368,7 @@ export async function getMinimalFullDOM(
 
   return await page.evaluate((maxLength) => {
 
-    // Clone body to avoid modifying real DOM
     const clone = document.body.cloneNode(true) as HTMLElement;
-
-    // =========================================
-    // REMOVE NOISE ELEMENTS
-    // =========================================
 
     clone.querySelectorAll(`
       script,
@@ -1379,20 +1388,12 @@ export async function getMinimalFullDOM(
       audio
     `).forEach(el => el.remove());
 
-    // =========================================
-    // REMOVE HIDDEN ELEMENTS
-    // =========================================
-
     clone.querySelectorAll(`
       .hidden,
       [hidden],
       input[type="hidden"],
       [aria-hidden="true"]
     `).forEach(el => el.remove());
-
-    // =========================================
-    // REMOVE COMMENTS
-    // =========================================
 
     const walker = document.createTreeWalker(
       clone,
@@ -1410,10 +1411,6 @@ export async function getMinimalFullDOM(
     comments.forEach(comment => {
       comment.parentNode?.removeChild(comment);
     });
-
-    // =========================================
-    // REMOVE DYNAMIC / NOISY ATTRIBUTES
-    // =========================================
 
     const cleanAttributes = (el: Element) => {
 
@@ -1433,7 +1430,6 @@ export async function getMinimalFullDOM(
           el.removeAttribute(attr.name);
         }
 
-        // Remove dynamic IDs
         if (
           attrName === 'id' &&
           /^[a-zA-Z0-9_-]{20,}$/.test(attr.value)
@@ -1441,7 +1437,6 @@ export async function getMinimalFullDOM(
           el.removeAttribute('id');
         }
 
-        // Remove long dynamic classes
         if (
           attrName === 'class' &&
           attr.value.length > 200
@@ -1457,18 +1452,10 @@ export async function getMinimalFullDOM(
 
     cleanAttributes(clone);
 
-    // =========================================
-    // NORMALIZE WHITESPACE
-    // =========================================
-
     let html = clone.innerHTML
       .replace(/\s+/g, ' ')
       .replace(/>\s+</g, '><')
       .trim();
-
-    // =========================================
-    // LIMIT SIZE
-    // =========================================
 
     if (html.length > maxLength) {
       html = html.slice(0, maxLength);
@@ -1478,105 +1465,6 @@ export async function getMinimalFullDOM(
 
   }, maxLength);
 }
-
-
-// export async function getElementContextDOM(
-//   locator: Locator,
-//   parentDepth: number = 5,
-//   siblingCount: number = 2,
-//   descendantDepth: number = 2
-// ): Promise<string> {
-
-//   return await locator.evaluate(
-//     (
-//       el,
-//       { parentDepth, siblingCount, descendantDepth }
-//     ) => {
-
-//       function cleanHTML(node: Element): string {
-//         return node.outerHTML
-//           .replace(/\s+/g, ' ')
-//           .trim();
-//       }
-
-//       function getParents(element: Element, depth: number): string[] {
-//         const parents: string[] = [];
-
-//         let current = element.parentElement;
-
-//         while (current && depth > 0) {
-//           parents.push(cleanHTML(current));
-//           current = current.parentElement;
-//           depth--;
-//         }
-
-//         return parents.reverse();
-//       }
-
-//       function getSiblings(element: Element, count: number): string[] {
-
-//         const siblings: string[] = [];
-
-//         let prev = element.previousElementSibling;
-//         let next = element.nextElementSibling;
-
-//         let added = 0;
-
-//         while (prev && added < count) {
-//           siblings.push(cleanHTML(prev));
-//           prev = prev.previousElementSibling;
-//           added++;
-//         }
-
-//         added = 0;
-
-//         while (next && added < count) {
-//           siblings.push(cleanHTML(next));
-//           next = next.nextElementSibling;
-//           added++;
-//         }
-
-//         return siblings;
-//       }
-
-//       function getDescendants(
-//         element: Element,
-//         depth: number
-//       ): string[] {
-
-//         const results: string[] = [];
-
-//         function walk(node: Element, currentDepth: number) {
-
-//           if (currentDepth > depth) return;
-
-//           for (const child of Array.from(node.children)) {
-
-//             results.push(cleanHTML(child));
-
-//             walk(child as Element, currentDepth + 1);
-//           }
-//         }
-
-//         walk(element, 1);
-
-//         return results;
-//       }
-
-//       return JSON.stringify({
-//         target: cleanHTML(el),
-//         parents: getParents(el, parentDepth),
-//         siblings: getSiblings(el, siblingCount),
-//         descendants: getDescendants(el, descendantDepth),
-//       });
-//     },
-//     {
-//       parentDepth,
-//       siblingCount,
-//       descendantDepth,
-//     }
-//   );
-// }
 
 export async function getElementContextDOM(
   locator: Locator,
