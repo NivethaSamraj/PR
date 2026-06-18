@@ -70,8 +70,12 @@ export async function dismissWelcomePopup(
   if (!appeared) return;
 
   // Try the common close affordances in order; stop at the first that works.
+  // #continueButton ("Continue Shopping") is the EShopWorld geo modal's
+  // actual dismiss control on this site — try it first.
   const closeCandidates: Locator[] = [
-    page.locator('#esw-landing-page .esw-continue, #esw-landing-page .esw-modal-close'),
+    page.locator('#continueButton'),
+    page.getByRole('button', { name: /continue shopping/i }),
+    page.locator('button.esw-btn'),
     page.getByRole('button', { name: /close|no thanks|continue|dismiss|shop/i }),
     page.locator('[aria-label*="close" i]'),
     page.locator('.modal-close, .close-button, button.close'),
