@@ -53,9 +53,32 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
       ],
       'input[type="search"]',
       async (loc) => {
+        await loc.click();
         await loc.fill('dress');
-        await loc.press('Enter');
-        await page.waitForLoadState('domcontentloaded');
+        // Enter alone only opens the suggestions dropdown on this site and
+        // does NOT navigate, so we commit the search via the dropdown.
+        await page.waitForTimeout(1500); // let suggestions populate
+
+        // Prefer a "view all results" link; fall back to first suggestion;
+        // last resort is Enter in case some builds do navigate.
+        const viewAll = page.getByRole('link', {
+          name: /see all|view all|all results/i,
+        });
+        const firstSuggestion = page
+          .locator('.suggestions a, .search-suggestions a, [class*="suggestion"] a')
+          .first();
+
+        if (await viewAll.first().isVisible().catch(() => false)) {
+          await viewAll.first().click();
+        } else if (await firstSuggestion.isVisible().catch(() => false)) {
+          await firstSuggestion.click();
+        } else {
+          await loc.press('Enter');
+        }
+
+        // Confirm we actually left the homepage for a results/PLP page.
+        await page.waitForURL(/search|q=dress|Search-Show/i, { timeout: 15000 });
+        await page.waitForLoadState('networkidle');
       },
       'Search Dresses'
     );
