@@ -116,6 +116,67 @@ export async function dismissWelcomePopup(
 }
 
 /* ------------------------------------------------------------------ *
+ *  ensureSearchPanelOpen
+ *
+ *  search_input has a precondition: the search panel must be open for the
+ *  search box to be visible. That precondition was implicitly owned by the
+ *  search_toggle step, but on replay the toggle can resolve in a different
+ *  state (or the page may already have navigated), leaving the box hidden
+ *  and every search_input locator matching 0 visible.
+ *
+ *  This makes the precondition explicit and idempotent: if the search box
+ *  is already visible, do nothing (a second toggle click could CLOSE the
+ *  panel). Otherwise click the search icon and wait for the box to appear.
+ *  Best-effort — never throws; if it cannot open the panel the subsequent
+ *  step will surface the real failure.
+ * ------------------------------------------------------------------ */
+export async function ensureSearchPanelOpen(
+  page: Page,
+  timeout: number = 8000
+): Promise<void> {
+  const searchBox = page.locator('input[name="q"]');
+
+  // Already open and interactable? Nothing to do.
+  const alreadyVisible = await searchBox
+    .filter({ visible: true })
+    .first()
+    .isVisible()
+    .catch(() => false);
+
+  if (alreadyVisible) return;
+
+  // Open the panel via the search icon. Try the known id first, then
+  // common fallbacks, stopping at the first that clicks.
+  const toggles: Locator[] = [
+    page.locator('#Sicon'),
+    page.getByRole('button', { name: /search/i }),
+    page.locator('button[aria-label*="search" i]'),
+    page.locator('[data-testid="search-icon"]'),
+  ];
+
+  for (const toggle of toggles) {
+    try {
+      if (await toggle.first().isVisible()) {
+        await toggle.first().click({ timeout: 3000 });
+        break;
+      }
+    } catch {
+      /* try next toggle candidate */
+    }
+  }
+
+  // Wait for the box to become visible after opening.
+  await searchBox
+    .filter({ visible: true })
+    .first()
+    .waitFor({ state: 'visible', timeout })
+    .catch(() => {
+      console.log('ensureSearchPanelOpen: search box did not become visible');
+    });
+}
+
+
+/* ------------------------------------------------------------------ *
  *  Click/interaction guard
  *
  *  These geo modals can re-fire after navigation (PLP/PDP loads),
@@ -132,6 +193,24 @@ export class OverlayInterceptError extends Error {
     this.name = 'OverlayInterceptError';
   }
 }
+
+
+/* ------------------------------------------------------------------ *
+ *  CaptureFailedError
+ *
+ *  Thrown when a brand-new element (no DB row yet) cannot be captured
+ *  because none of its spec candidates became visible. This must NOT
+ *  fall through to AI healing: there is nothing stored to heal from,
+ *  so healing would only throw the misleading "No locator data found".
+ *  We surface it distinctly so step()'s catch re-throws the real cause.
+ * ------------------------------------------------------------------ */
+export class CaptureFailedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CaptureFailedError';
+  }
+}
+
 
 async function runActionGuarded(
   page: Page,
@@ -356,7 +435,20 @@ export async function step(
       // ---- NEW ELEMENT: baseline capture ----
       if (!existing) {
         await test.step('Baseline Capture', async () => {
-          const el = await firstVisible(page, captureCandidates);
+          let el: Locator;
+          try {
+            el = await firstVisible(page, captureCandidates);
+          } catch (capErr: any) {
+            // No candidate became visible for a brand-new element. Do NOT
+            // let this reach AI healing (there is no stored row to heal).
+            throw new CaptureFailedError(
+              `Baseline capture failed for "${elementName}": none of the ` +
+                `spec candidates became visible. The element may not have ` +
+                `rendered yet, or the candidates are wrong. ` +
+                `(${capErr?.message ?? capErr})`
+            );
+          }
+
           await captureElement(page, elementName, el, primaryLocator);
           await runActionGuarded(page, el, action);
 
@@ -416,6 +508,25 @@ export async function step(
         endFlow({
           finalTier: 'db',
           finalLocator: primaryLocator,
+          healed: false,
+          writtenBack: false,
+        });
+        throw e;
+      }
+
+      // A brand-new element that could not be captured has no stored data,
+      // so AI healing is impossible and would only emit the misleading
+      // "No locator data found". Fail with the real capture reason instead.
+      if (e instanceof CaptureFailedError) {
+        logStep({
+          tier: 'db',
+          action: 'Baseline Capture',
+          status: 'failed',
+          reason: e.message,
+        });
+        endFlow({
+          finalTier: null,
+          finalLocator: null,
           healed: false,
           writtenBack: false,
         });
