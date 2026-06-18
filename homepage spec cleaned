@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { step, dismissWelcomePopup, settle } from '../core/healing/stepRunner';
+import { step, dismissWelcomePopup, settle, ensureSearchPanelOpen } from '../core/healing/stepRunner';
 
 /* ================================================================== *
  *  SPEC — Ann Taylor full funnel: homepage → PLP → PDP → cart
@@ -43,6 +43,11 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
     );
 
     // SEARCH INPUT
+    // Ensure the search panel is open first. search_input only exists/visible
+    // when the panel is open; on replay the toggle above can leave it closed,
+    // so we make the precondition explicit and idempotent here.
+    await ensureSearchPanelOpen(page);
+
     await step(
       page,
       'search_input',
