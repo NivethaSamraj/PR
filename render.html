@@ -58,10 +58,6 @@ export function renderHtml(flows: HealFlow[], outDir: string): string {
   // Resilience score: share of elements resolved at ANY tier without manual help
   const resilience = pct(resolvedN, total);
 
-  // // Avg steps to resolve (depth of fallback chain actually used)
-  // const totalSteps = flows.reduce((a, f) => a + (f.steps?.length ?? 0), 0);
-  // const avgSteps = total === 0 ? 0 : Math.round((totalSteps / total) * 10) / 10;
-
   // Total time across all logged steps (ms) where durations exist
   const totalMs = flows.reduce(
     (a, f) => a + (f.steps?.reduce((s, st) => s + (st.durationMs ?? 0), 0) ?? 0),
@@ -103,11 +99,11 @@ export function renderHtml(flows: HealFlow[], outDir: string): string {
     .join("");
 
   // ---- Heal timeline: each element as a chip on the resolution path ----
- const buildTimelineSection = (
-  title: string,
-  color: string,
-  items: HealFlow[]
-) => `
+  const buildTimelineSection = (
+    title: string,
+    color: string,
+    items: HealFlow[]
+  ) => `
 <div class="timeline-group">
   <div class="timeline-title" style="color:${color}">
     ${title} (${items.length})
@@ -120,9 +116,9 @@ export function renderHtml(flows: HealFlow[], outDir: string): string {
             .map(
               f => `
           <div class="tl-chip" style="--c:${color}">
-      <span class="tl-name">
-  ${esc(displayNames[f.elementName] ?? f.elementName)}
-</span>
+            <span class="tl-name">
+              ${esc(displayNames[f.elementName] ?? f.elementName)}
+            </span>
           </div>
         `
             )
@@ -133,7 +129,7 @@ export function renderHtml(flows: HealFlow[], outDir: string): string {
 </div>
 `;
 
-const timeline = `
+  const timeline = `
 ${buildTimelineSection(
   "DB PRIMARY",
   "#2DD4A7",
@@ -164,6 +160,14 @@ ${buildTimelineSection(
     .map((f, i) => {
       const tier = (f.finalTier ?? "unresolved") as TierKey;
       const meta = TIER_META[tier] ?? TIER_META.unresolved;
+
+      // Friendly element label (falls back to the raw element name).
+      // NOTE: this must live OUTSIDE the returned template string — a
+      // previous version pasted this declaration inside the backticks,
+      // which printed the code as literal text in every row AND dropped
+      // the element-name cell entirely.
+      const displayName = displayNames[f.elementName] ?? f.elementName;
+
       const stepRows = (f.steps ?? [])
         .map(
           (s) => `<tr>
@@ -179,9 +183,8 @@ ${buildTimelineSection(
 
       return `<tr class="main" data-row="${i}">
         <td class="ix">${String(i + 1).padStart(2, "0")}</td>
-       const displayName =
-  displayNames[f.elementName] ?? f.elementName;
-       <td><span class="tier" style="background:${meta.color}1f;color:${meta.color}">${meta.label}</span></td>
+        <td class="el">${esc(displayName)}</td>
+        <td><span class="tier" style="background:${meta.color}1f;color:${meta.color}">${meta.label}</span></td>
         <td>${f.healed ? `<span class="yes">Healed</span>` : `<span class="no">—</span>`}</td>
         <td class="loc">${esc(f.finalLocator)}</td>
         <td class="exp">▾</td>
@@ -402,22 +405,18 @@ ${buildTimelineSection(
       <h1>Flow Resolution Dashboard</h1>
       <span class="sub">Live results from the three-tier fallback chain — DB primary → smart locators → AI healing</span>
     </div>
-    <div class="topbar">
-  <div class="brand">
-    ...
-  </div>
 
-  <div class="top-actions">
-    <button id="themeToggle" class="theme-btn">
-      🌙 Dark mode
-    </button>
+    <div class="top-actions">
+      <button id="themeToggle" class="theme-btn">
+        🌙 Dark mode
+      </button>
 
-    <div class="gen">
-      Generated<br>${esc(generated)}
+      <div class="gen">
+        Generated<br>${esc(generated)}
+      </div>
     </div>
   </div>
-</div>
-    
+
 
   <div class="hero">
     <div class="score">
@@ -475,6 +474,9 @@ ${buildTimelineSection(
     <div class="l">Resilience Score</div>
   </div>
 </div>
+
+  <div class="section-h">Resolution Timeline · elements grouped by the tier that resolved them</div>
+  ${timeline}
 
   <div class="section-h">Element Detail · click a row to expand its tier trace</div>
   <div class="panel">
