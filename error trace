@@ -1,5 +1,5 @@
 
-PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> start self-healing-output\index.html                                         
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> start self-healing-output\index.html                  
 PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> npx playwright test tests/Homepage.spec.ts --project=chrome --workers=1 --headed
 REPORTER FILE LOADED
 
@@ -8,32 +8,58 @@ Running 1 test using 1 worker
 Old flow files cleared
 SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
-     1 …tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › Search Dresses › Baseline Capture
-BEGIN FLOW: search_toggle
-SAVED ELEMENT: { name: 'search_toggle', hasOuterHTML: true, hasScreenshot: true }
-captured: search_toggle
-END FLOW
-ENDING FLOW search_toggle db
-FLOW COUNT: 1
-BEGIN FLOW: search_input
-SAVED ELEMENT: { name: 'search_input', hasOuterHTML: true, hasScreenshot: true }
-captured: search_input
-END FLOW
-ENDING FLOW search_input db
-FLOW COUNT: 2
-  ✓  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (2.1m)
-BEGIN FLOW: dress_product
-SAVED ELEMENT: { name: 'dress_product', hasOuterHTML: true, hasScreenshot: true }
-captured: dress_product
-END FLOW
-ENDING FLOW dress_product db
-FLOW COUNT: 3
+     1 …or — Self-Healing Funnel › homepage to bag interactions › dress_product - AI Healing › Generate AI Locator
+ WARNING  Locator matched 0 elements
+ WARNING  Locator matched 0 elements
+[Test        ] ann-taylor page
+[Element     ] dress_product
+[Page        ] https://sfqa.anntaylor.com/search?q=dress&lang=default
+[AI SELF-HEALING STARTED] Azure_OpenAI
 
-  1 passed (2.2m)
+
+──────────────────────────────────────────────────
+ STEP 1 — DATABASE PRIMARY LOCATOR
+──────────────────────────────────────────────────
+[Trying      ] [data-testid*="product"]
+ WARNING  Locator matched 0 elements
+ FAILED   DB Primary locator failed
+
+
+──────────────────────────────────────────────────
+ STEP 2 — SMART LOCATOR FALLBACK
+──────────────────────────────────────────────────
+
+
+──────────────────────────────────────────────────
+ STEP 3 — AI HEALING
+──────────────────────────────────────────────────
+ AI       Collecting screenshots and DOM context
+ AI       Sending healing request to AI model
+blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
+ AI       Locator      : getByRole('link', { name: /V-Neck Ruffle Maxi Dress/i })
+ AI       Confidence   : 1
+ AI       Reason       : The target element is the product card for 'V-Neck Ruffle Maxi Dress'. In the current DOM and screenshot, this product is visually and structurally present as a link with the accessible name 'V-Neck Ruffle Maxi Dress'. This locator is unique, stable, and reliable as it matches the visible product name and role, and there are no other links with this name on the page.
+ WARNING  Locator matched 3 elements (3 visible) — SOFT MATCH, using .first(). Verify this is intended for this element.
+
+
+──────────────────────────────────────────────────
+ HEALING SUCCESS
+──────────────────────────────────────────────────
+ SUCCESS  AI locator validated successfully
+[Final Locator] getByRole('link', { name: /V-Neck Ruffle Maxi Dress/i })
+[Confidence  ] 1
+
+
+════════════════════════════════════════════════════════════
+ HEALING COMPLETED
+════════════════════════════════════════════════════════════
+  ✓  1 …ome] › tests\Homepage.spec.ts:6:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.4m)
+
+  1 passed (1.5m)
 SELF HEALING REPORTER FINISHED
-Reading: flows-24208.json
-Parsed flows: 3
-FLOW COUNT = 3
-Found 3 flows
+Reading: flows-21172-1781805171547.json
+Parsed flows: 1
+FLOW COUNT = 1
+Found 1 flows
 Dashboard created: self-healing-output\index.html
 HTML created: self-healing-output\index.html
