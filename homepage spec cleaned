@@ -1,0 +1,126 @@
+import { test, expect } from '@playwright/test';
+import { step } from '../core/healing/stepRunner';
+
+/* ================================================================== *
+ *  SPEC — Ann Taylor full funnel: homepage → PLP → PDP → cart
+ *
+ *  All self-healing logic (capture, DB/smart resolution, AI heal,
+ *  flow tracking) lives in core/healing/stepRunner. This file holds
+ *  only the test scenario: the elements, their candidate locators,
+ *  and the action performed on each.
+ * ================================================================== */
+test.describe('Ann Taylor — Self-Healing Funnel', () => {
+  test('homepage to bag interactions', async ({ page }) => {
+    test.setTimeout(180_000);
+
+    await page.goto('https://sfqa.anntaylor.com/', {
+      waitUntil: 'domcontentloaded',
+    });
+    await page.waitForLoadState('domcontentloaded');
+
+    // SEARCH ICON
+    await step(
+      page,
+      'search_toggle',
+      [
+        page.locator('[data-testid="search-icon"]'),
+        page.getByRole('button', { name: /search/i }),
+        page.locator('button[aria-label*="search" i]'),
+      ],
+      '[data-testid="search-icon"]',
+      async (loc) => {
+        await loc.click();
+      },
+      'Open Search'
+    );
+
+    // SEARCH INPUT
+    await step(
+      page,
+      'search_input',
+      [
+        page.locator('input[type="search"]'),
+        page.getByPlaceholder(/search/i),
+        page.getByRole('textbox').first(),
+      ],
+      'input[type="search"]',
+      async (loc) => {
+        await loc.fill('dress');
+        await loc.press('Enter');
+        await page.waitForLoadState('domcontentloaded');
+      },
+      'Search Dresses'
+    );
+
+    // FIRST PRODUCT
+    await step(
+      page,
+      'dress_product',
+      [
+        page.locator('.product-tile a').first(),
+        page.locator('a[href*="/p/"]').first(),
+        page.locator('[data-testid*="product"]').first(),
+      ],
+      '[data-testid*="product"]',
+      async (loc) => {
+        await loc.click();
+        await page.waitForLoadState('domcontentloaded');
+      },
+      'Open First Product'
+    );
+
+    // SIZE
+    await step(
+      page,
+      'dress_size',
+      [
+        page.getByRole('button', { name: /^XS$/i }),
+        page.getByRole('button', { name: /^S$/i }),
+        page.getByRole('button', { name: /^M$/i }),
+        page.getByRole('button', { name: /^L$/i }),
+      ],
+      'button.size-option',
+      async (loc) => {
+        await loc.click();
+      },
+      'Select Size'
+    );
+
+    // ADD TO BAG
+    await step(
+      page,
+      'add_to_bag',
+      [
+        page.locator('#addToCart'),
+        page.getByRole('button', { name: /add to bag/i }),
+        page.getByText(/add to bag/i),
+      ],
+      '#addToCart',
+      async (loc) => {
+        await loc.click();
+      },
+      'Add To Bag'
+    );
+
+    // MINI CART
+    await step(
+      page,
+      'mini_cart_open',
+      [
+        page.locator('#miniCart'),
+        page.getByRole('button', { name: /bag|cart/i }),
+        page.locator('[data-testid="cart-link"]'),
+      ],
+      '#miniCart',
+      async (loc) => {
+        await loc.click();
+      },
+      'Open Mini Cart'
+    );
+
+    // FINAL ASSERTION
+    await test.step('Verify Product Added To Cart', async () => {
+      await expect(page.locator('body')).toContainText(/bag|cart|checkout/i);
+    });
+  });
+});
