@@ -626,45 +626,66 @@ function buildBaseLocator(page: Page, locatorStr: string): Locator {
     return page.locator(`xpath=${locatorStr}`);
   }
 
-  // getByRole
-  const roleMatch = locatorStr.match(
-    /getByRole\('([^']+)'\s*,\s*\{\s*name:\s*'([^']+)'/
-  );
+  // ---- getByRole ----
+  // The AI may return either a quoted string name or a regex literal name:
+  //   getByRole('link', { name: 'Add to bag' })
+  //   getByRole('link', { name: /v-neck ruffle maxi dress/i })
+  // The original parser only handled the quoted form, so regex names fell
+  // through to page.locator() and crashed the CSS parser on the "{".
 
-  if (roleMatch) {
-    return page.getByRole(
-      roleMatch[1] as any,
-      { name: roleMatch[2] }
-    );
+  // regex-name form first
+  const roleRegexMatch = locatorStr.match(
+    /getByRole\('([^']+)'\s*,\s*\{\s*name:\s*\/(.+?)\/([a-z]*)\s*\}/i
+  );
+  if (roleRegexMatch) {
+    const re = new RegExp(roleRegexMatch[2], roleRegexMatch[3] || undefined);
+    return page.getByRole(roleRegexMatch[1] as any, { name: re });
   }
 
-  // getByText
-  const textMatch = locatorStr.match(
-    /getByText\('([^']+)'/
+  // quoted-string-name form (preserve exact:true when present)
+  const roleMatch = locatorStr.match(
+    /getByRole\('([^']+)'\s*,\s*\{\s*name:\s*'([^']+)'(?:\s*,\s*exact:\s*(true|false))?/
   );
+  if (roleMatch) {
+    const opts: any = { name: roleMatch[2] };
+    if (roleMatch[3]) opts.exact = roleMatch[3] === 'true';
+    return page.getByRole(roleMatch[1] as any, opts);
+  }
 
+  // bare getByRole('button') with no name
+  const roleOnly = locatorStr.match(/getByRole\('([^']+)'\s*\)/);
+  if (roleOnly) {
+    return page.getByRole(roleOnly[1] as any);
+  }
+
+  // ---- getByText ----
+  const textRegex = locatorStr.match(/getByText\(\/(.+?)\/([a-z]*)\)/i);
+  if (textRegex) {
+    return page.getByText(new RegExp(textRegex[1], textRegex[2] || undefined));
+  }
+  const textMatch = locatorStr.match(/getByText\('([^']+)'/);
   if (textMatch) {
     return page.getByText(textMatch[1]);
   }
 
-  // getByLabel
-  const labelMatch = locatorStr.match(
-    /getByLabel\('([^']+)'/
-  );
-
+  // ---- getByLabel ----
+  const labelRegex = locatorStr.match(/getByLabel\(\/(.+?)\/([a-z]*)\)/i);
+  if (labelRegex) {
+    return page.getByLabel(new RegExp(labelRegex[1], labelRegex[2] || undefined));
+  }
+  const labelMatch = locatorStr.match(/getByLabel\('([^']+)'/);
   if (labelMatch) {
     return page.getByLabel(labelMatch[1]);
   }
 
-  // getByPlaceholder
-  const placeholderMatch = locatorStr.match(
-    /getByPlaceholder\('([^']+)'/
-  );
-
+  // ---- getByPlaceholder ----
+  const phRegex = locatorStr.match(/getByPlaceholder\(\/(.+?)\/([a-z]*)\)/i);
+  if (phRegex) {
+    return page.getByPlaceholder(new RegExp(phRegex[1], phRegex[2] || undefined));
+  }
+  const placeholderMatch = locatorStr.match(/getByPlaceholder\('([^']+)'/);
   if (placeholderMatch) {
-    return page.getByPlaceholder(
-      placeholderMatch[1]
-    );
+    return page.getByPlaceholder(placeholderMatch[1]);
   }
 
   return page.locator(locatorStr);
