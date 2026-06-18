@@ -21,6 +21,9 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
     // DISMISS WELCOME POPUP
     // The EShopWorld welcome modal (div.modalBg.welcomeBg) overlays the page
     // and intercepts pointer events. It must be closed before any click.
+    // stepRunner also clears it again before each guarded action in case it
+    // re-fires after navigation, so this upfront call is the first line of
+    // defence rather than the only one.
     await dismissWelcomePopup(page);
 
     // SEARCH ICON
@@ -57,6 +60,9 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
       'Search Dresses'
     );
 
+    // Geo/welcome modal can re-fire after the search navigation.
+    await dismissWelcomePopup(page, 3000);
+
     // FIRST PRODUCT
     await step(
       page,
@@ -73,6 +79,9 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
       },
       'Open First Product'
     );
+
+    // Modal can re-fire again on the PDP load.
+    await dismissWelcomePopup(page, 3000);
 
     // SIZE
     await step(
