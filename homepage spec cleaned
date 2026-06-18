@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { step, dismissWelcomePopup } from '../core/healing/stepRunner';
+import { step, dismissWelcomePopup, settle } from '../core/healing/stepRunner';
 
 /* ================================================================== *
  *  SPEC — Ann Taylor full funnel: homepage → PLP → PDP → cart
@@ -116,18 +116,36 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
     // Modal can re-fire again on the PDP load.
     await dismissWelcomePopup(page, 3000);
 
+    // PDP renders size controls asynchronously after navigation. Wait for
+    // the product detail page to settle so the size selector exists before
+    // baseline capture runs (otherwise capture finds no visible candidate).
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await settle(page, 1500);
+
     // SIZE
+    // SIZE
+    // Ann Taylor sizes are swatch buttons: <button class="ds-size-swatch
+    // js-size-button ...">. Out-of-stock sizes carry extra classes
+    // (NOT_AVAILABLE / waitlist-disabled), so we must pick an AVAILABLE one
+    // or add-to-bag will not work. Sizes here are numeric (8, 2, ...), not
+    // XS/S/M/L — the old letter candidates never matched. Scope to the size
+    // swatch block so colour swatches are not caught, and exclude the
+    // disabled/unavailable variants.
     await step(
       page,
       'dress_size',
       [
-        page.getByRole('button', { name: /^XS$/i }),
-        page.getByRole('button', { name: /^S$/i }),
-        page.getByRole('button', { name: /^M$/i }),
-        page.getByRole('button', { name: /^L$/i }),
+        page.locator(
+          '.ds-size-swatch-block button.js-size-button:not(.NOT_AVAILABLE):not(.waitlist-disabled):not([disabled])'
+        ).first(),
+        page.locator(
+          'button.ds-size-swatch:not(.NOT_AVAILABLE):not(.waitlist-disabled)'
+        ).first(),
+        page.locator('button.js-size-button:not([disabled])').first(),
       ],
-      'button.size-option',
+      '.ds-size-swatch-block button.js-size-button:not(.NOT_AVAILABLE):not(.waitlist-disabled) >> nth=0',
       async (loc) => {
+        await loc.scrollIntoViewIfNeeded();
         await loc.click();
       },
       'Select Size'
