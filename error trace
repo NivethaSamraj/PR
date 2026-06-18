@@ -1,4 +1,3 @@
-ded
 REPORTER FILE LOADED
 
 Running 1 test using 1 worker
@@ -13,6 +12,8 @@ END FLOW
 ENDING FLOW search_toggle smart
 FLOW COUNT: 1
 BEGIN FLOW: search_input
+SAVED ELEMENT: { name: 'search_input', hasOuterHTML: true, hasScreenshot: true }
+captured: search_input
 [Test        ] ann-taylor page
 [Element     ] search_input
 [Page        ] https://sfqa.anntaylor.com/search?q=dress&lang=default
@@ -60,7 +61,7 @@ Call log:
 blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
  AI       Locator      : getByPlaceholder('What are you looking for?')
  AI       Confidence   : 1
- AI       Reason       : The search input in the OLD element had the placeholder 'What are you looking for?' and this is still present in the CURRENT DOM. The input is uniquely identified by this placeholder, and there are no other similar inputs visible in the current screenshot or DOM. This matches the original element's purpose and location.
+ AI       Reason       : The search input in the OLD DOM had the placeholder 'What are you looking for?' and this is still present in the CURRENT DOM. The input is unique and easily identifiable by this placeholder, which is stable and not likely to change. No other input shares this placeholder, making this locator unique, stable, and reliable.
  WARNING  Locator matched 2 elements (0 visible) — ambiguous, rejecting
 
 
@@ -68,7 +69,7 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
  HEALING FAILED
 ──────────────────────────────────────────────────
  FAILED   AI locator is not valid on current page
-  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (2.9m)
+  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.3m)
 
 
   1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
@@ -85,23 +86,27 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
       543 |     );
       544 |   }
         at findWithFallback (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\fallBackEngine.ts:541:11)
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:432:20
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:431:9
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:428:7
-        at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:352:3)
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:46:5
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:543:20
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:542:9
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:539:7
+        at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:431:3)
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:51:5
 
-    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    attachment #3: allureattach_dd6c7b95-4546-40da-b8fc-2591b34984df_Outer HTML (text/html) ────────
+    <input class="form-control search-field" id="Submit-search" type="text" name="q" value="" placeholder="What are you looking for?" role="combobox" aria-describedby="search-assistive-text" aria-haspopup="listbox" aria-owns="search-results" aria-expanded="false" aria-autocomplete="list" aria-activedesc...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #6: screenshot (image/png) ──────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    attachment #7: video (video/webm) ──────────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\error-context.md
 
-    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    attachment #9: trace (application/zip) ─────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
     Usage:
 
@@ -112,9 +117,9 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
   1 failed
     [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 SELF HEALING REPORTER FINISHED
-Reading: flows-21008-1781774401722.json
+Reading: flows-14980-1781774836801.json
 Parsed flows: 1
-Reading: flows-21008.json
+Reading: flows-14980.json
 Parsed flows: 1
 FLOW COUNT = 2
 Found 2 flows
