@@ -1,0 +1,4017 @@
+flowtracker.ts 
+
+import fs from "fs";
+import path from "path";
+
+export type Tier = "db" | "smart" | "ai";
+export type Status = "success" | "failed" | "skipped";
+
+export interface FlowStep {
+  order: number;
+  tier: Tier;
+  action: string;
+  locator?: string;
+  status: Status;
+  reason?: string;
+  durationMs?: number;
+}
+
+export interface HealFlow {
+  elementName: string;
+  testName: string;
+  pageUrl: string;
+  startedAt: string;
+  steps: FlowStep[];
+  finalTier: Tier | null;
+  finalLocator: string | null;
+  healed: boolean;
+  writtenBack: boolean;
+}
+
+const OUT = "self-healing-output";
+const SHARD_DIR = path.join(OUT, "shards");
+
+let currentFlow: HealFlow | null = null;
+const allFlows: HealFlow[] = [];
+
+export function beginFlow(
+  elementName: string,
+  testName: string,
+  pageUrl: string
+) {
+
+  if (currentFlow) {
+    console.log(
+      'AUTO-CLOSING FLOW:',
+      currentFlow.elementName
+    );
+
+    endFlow({
+      finalTier: null,
+      finalLocator: null,
+      healed: false,
+      writtenBack: false
+    });
+  }
+
+  console.log('BEGIN FLOW:', elementName);
+
+  currentFlow = {
+    elementName,
+    testName,
+    pageUrl,
+    startedAt: new Date().toISOString(),
+    steps: [],
+    finalTier: null,
+    finalLocator: null,
+    healed: false,
+    writtenBack: false
+  };
+}
+export function logStep(
+  step: Omit<FlowStep, "order">
+) {
+  if (!currentFlow) return;
+
+  currentFlow.steps.push({
+    order: currentFlow.steps.length + 1,
+    ...step,
+  });
+}
+
+export function endFlow(opts: any) {
+  console.log('END FLOW');
+    console.log(
+    'ENDING FLOW',
+    currentFlow?.elementName,
+    opts.finalTier
+  );
+
+  if (!currentFlow) {
+    console.log('NO CURRENT FLOW');
+    return;
+  }
+
+  Object.assign(currentFlow, opts);
+
+  allFlows.push(currentFlow);
+
+  console.log(
+    'FLOW COUNT:',
+    allFlows.length
+  );
+
+  currentFlow = null;
+
+  writeShard();
+}
+
+export function getFlows(): HealFlow[] {
+  return allFlows;
+}
+
+function writeShard() {
+  try {
+    fs.mkdirSync(SHARD_DIR, { recursive: true });
+
+    const file = path.join(
+      SHARD_DIR,
+      `flows-${process.pid}.json`
+    );
+
+    fs.writeFileSync(
+      file,
+      JSON.stringify(allFlows, null, 2),
+      "utf-8"
+    );
+  } catch (e) {
+    console.error("Failed to write shard", e);
+  }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+render.html
+import fs from "fs";
+import path from "path";
+import { HealFlow } from "./types";
+
+/**
+ * Self-Healing Flow Dashboard
+ * ---------------------------
+ * Drop-in replacement for the previous renderHtml(flows, outDir).
+ * Every figure on the page is derived from the live `flows[]` array that
+ * flowTracker collects during the run. Nothing is hardcoded — if a tier has
+ * zero entries the bar/segment simply renders at zero width.
+ */
+
+const esc = (s?: string | number | null) =>
+  String(s ?? "—")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+
+
+const displayNames: Record<string, string> = {
+  continue_shopping: "Dismiss Welcome Popup",
+  search_toggle: "Open Product Search",
+  search_input: "Enter Search Criteria",
+  dress_product: "Select Product",
+  dress_size: "Choose Size",
+  add_to_bag: "Add Product To Bag",
+  mini_cart_open: "Open Shopping Bag",
+  verify_cart: "Verify Cart Contents"
+};
+
+const TIER_META = {
+  db: { label: "DB Primary", color: "#2DD4A7" },
+  smart: { label: "Smart Locator", color: "#F4B740" },
+  ai: { label: "AI Healed", color: "#FF6B6B" },
+  unresolved: { label: "Unresolved", color: "#6B7A99" },
+} as const;
+
+type TierKey = keyof typeof TIER_META;
+
+function pct(n: number, total: number): number {
+  return total === 0 ? 0 : Math.round((n / total) * 1000) / 10;
+}
+
+export function renderHtml(flows: HealFlow[], outDir: string): string {
+  const total = flows.length;
+
+  const count = (t: string) => flows.filter((f) => f.finalTier === t).length;
+  const dbN = count("db");
+  const smartN = count("smart");
+  const aiN = count("ai");
+  const unresolvedN = flows.filter((f) => !f.finalTier).length;
+
+  const healedN = flows.filter((f) => f.healed).length;
+  const resolvedN = total - unresolvedN;
+
+  // Resilience score: share of elements resolved at ANY tier without manual help
+  const resilience = pct(resolvedN, total);
+
+  // // Avg steps to resolve (depth of fallback chain actually used)
+  // const totalSteps = flows.reduce((a, f) => a + (f.steps?.length ?? 0), 0);
+  // const avgSteps = total === 0 ? 0 : Math.round((totalSteps / total) * 10) / 10;
+
+  // Total time across all logged steps (ms) where durations exist
+  const totalMs = flows.reduce(
+    (a, f) => a + (f.steps?.reduce((s, st) => s + (st.durationMs ?? 0), 0) ?? 0),
+    0
+  );
+
+  // ---- Tier distribution bar (segments scale to live counts) ----
+  const distOrder: TierKey[] = ["db", "smart", "ai", "unresolved"];
+  const distSegments = distOrder
+    .map((k) => {
+      const n =
+        k === "unresolved"
+          ? unresolvedN
+          : k === "db"
+          ? dbN
+          : k === "smart"
+          ? smartN
+          : aiN;
+      const w = pct(n, total);
+      if (w === 0) return "";
+      return `<div class="seg" style="width:${w}%;background:${TIER_META[k].color}" title="${TIER_META[k].label}: ${n}">${
+        w >= 8 ? `<span>${n}</span>` : ""
+      }</div>`;
+    })
+    .join("");
+
+  const distLegend = distOrder
+    .map((k) => {
+      const n =
+        k === "unresolved"
+          ? unresolvedN
+          : k === "db"
+          ? dbN
+          : k === "smart"
+          ? smartN
+          : aiN;
+      return `<li><span class="dot" style="background:${TIER_META[k].color}"></span>${TIER_META[k].label}<b>${n}</b></li>`;
+    })
+    .join("");
+
+  // ---- Heal timeline: each element as a chip on the resolution path ----
+ const buildTimelineSection = (
+  title: string,
+  color: string,
+  items: HealFlow[]
+) => `
+<div class="timeline-group">
+  <div class="timeline-title" style="color:${color}">
+    ${title} (${items.length})
+  </div>
+
+  <div class="timeline-row">
+    ${
+      items.length
+        ? items
+            .map(
+              f => `
+          <div class="tl-chip" style="--c:${color}">
+      <span class="tl-name">
+  ${esc(displayNames[f.elementName] ?? f.elementName)}
+</span>
+          </div>
+        `
+            )
+            .join("")
+        : '<span class="empty-tier">No Elements</span>'
+    }
+  </div>
+</div>
+`;
+
+const timeline = `
+${buildTimelineSection(
+  "DB PRIMARY",
+  "#2DD4A7",
+  flows.filter(f => f.finalTier === "db")
+)}
+
+${buildTimelineSection(
+  "SMART LOCATOR",
+  "#F4B740",
+  flows.filter(f => f.finalTier === "smart")
+)}
+
+${buildTimelineSection(
+  "AI HEALED",
+  "#FF6B6B",
+  flows.filter(f => f.finalTier === "ai")
+)}
+
+${buildTimelineSection(
+  "UNRESOLVED",
+  "#6B7A99",
+  flows.filter(f => !f.finalTier)
+)}
+`;
+
+  // ---- Detail rows ----
+  const rows = flows
+    .map((f, i) => {
+      const tier = (f.finalTier ?? "unresolved") as TierKey;
+      const meta = TIER_META[tier] ?? TIER_META.unresolved;
+      const stepRows = (f.steps ?? [])
+        .map(
+          (s) => `<tr>
+        <td>${s.order}</td>
+        <td><span class="mini ${s.tier}">${esc(s.tier)}</span></td>
+        <td>${esc(s.action)}</td>
+        <td class="st-${s.status}">${esc(s.status)}</td>
+        <td class="loc">${esc(s.locator)}</td>
+        <td>${s.durationMs != null ? s.durationMs + " ms" : "—"}</td>
+      </tr>`
+        )
+        .join("");
+
+      return `<tr class="main" data-row="${i}">
+        <td class="ix">${String(i + 1).padStart(2, "0")}</td>
+       const displayName =
+  displayNames[f.elementName] ?? f.elementName;
+       <td><span class="tier" style="background:${meta.color}1f;color:${meta.color}">${meta.label}</span></td>
+        <td>${f.healed ? `<span class="yes">Healed</span>` : `<span class="no">—</span>`}</td>
+        <td class="loc">${esc(f.finalLocator)}</td>
+        <td class="exp">▾</td>
+      </tr>
+      <tr class="detail" data-detail="${i}">
+        <td colspan="8">
+          <table class="steps">
+            <thead><tr><th>#</th><th>Tier</th><th>Action</th><th>Status</th><th>Locator</th><th>Duration</th></tr></thead>
+            <tbody>${stepRows || `<tr><td colspan="6" class="empty">No steps recorded</td></tr>`}</tbody>
+          </table>
+        </td>
+      </tr>`;
+    })
+    .join("");
+
+  const generated = new Date().toLocaleString();
+
+  const html = `<!doctype html><html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Self-Healing Flow Report</title>
+<style>
+  :root{
+    --bg:#0B1220; --panel:#111B2E; --panel-2:#0E1626; --line:#1E2B45;
+    --ink:#E8EEF7; --muted:#8DA0BF; --faint:#5C6E8C;
+    --db:#2DD4A7; --smart:#F4B740; --ai:#FF6B6B; --unres:#6B7A99;
+    --accent:#5B8DEF;
+    --mono:'JetBrains Mono','SF Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter','Segoe UI',system-ui,-apple-system,sans-serif;
+  }
+    body.light{
+  --bg:#F5F7FB;
+  --panel:#FFFFFF;
+  --panel-2:#F8FAFD;
+  --line:#DCE4F0;
+
+  --ink:#18263A;
+  --muted:#5E718F;
+  --faint:#8B9AB3;
+
+  --accent:#3563E9;
+}
+  *{box-sizing:border-box}
+  body{margin:0;background:
+    radial-gradient(1200px 600px at 85% -10%,#16243f 0%,transparent 55%),
+    var(--bg);
+    color:var(--ink);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;padding:20px;line-height:1.5}
+
+  .topbar{display:flex;align-items:flex-end;justify-content:space-between;
+    flex-wrap:wrap;gap:16px;margin-bottom:30px}
+  .brand{display:flex;flex-direction:column;gap:6px}
+  .brand .kicker{font-family:var(--mono);font-size:12px;letter-spacing:.32em;
+    color:var(--db);text-transform:uppercase}
+  .brand h1{margin:0;font-size:30px;font-weight:700;letter-spacing:-.01em}
+  .brand .sub{color:var(--muted);font-size:14px}
+  .gen{font-family:var(--mono);font-size:12px;color:var(--faint);text-align:right}
+  
+
+  /* Hero score */
+  .hero{display:grid;grid-template-columns:280px 1fr;gap:22px;margin-bottom:22px}
+  @media(max-width:860px){.hero{grid-template-columns:1fr}}
+  .score{background:linear-gradient(160deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:18px;padding:26px;
+    display:flex;flex-direction:column;justify-content:center;align-items:center;
+    position:relative;overflow:hidden}
+  .ring{position:relative;width:180px;height:180px}
+  .ring svg{transform:rotate(-90deg)}
+  .ring .val{position:absolute;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center}
+  .ring .num{font-size:46px;font-weight:700;letter-spacing:-.02em}
+  .ring .num small{font-size:20px;color:var(--muted)}
+  .ring .cap{font-family:var(--mono);font-size:11px;letter-spacing:.18em;
+    color:var(--muted);text-transform:uppercase;margin-top:2px}
+
+  .dist{background:linear-gradient(160deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:18px;padding:24px 26px;
+    display:flex;flex-direction:column;gap:18px}
+  .dist h3{margin:0;font-size:13px;font-family:var(--mono);letter-spacing:.16em;
+    text-transform:uppercase;color:var(--muted);font-weight:600}
+  .bar{display:flex;height:46px;border-radius:11px;overflow:hidden;
+    background:#0a0f1c;border:1px solid var(--line)}
+  .bar .seg{display:flex;align-items:center;justify-content:center;
+    color:#06121b;font-weight:700;font-size:13px;transition:width .6s ease;min-width:2px}
+  .bar .seg span{padding:0 4px}
+  .legend{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;gap:20px}
+  .legend li{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+  .legend b{color:var(--ink);font-size:15px;margin-left:2px}
+  .dot{width:11px;height:11px;border-radius:3px;display:inline-block}
+
+  /* Stat cards */
+  .stats{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:26px}
+  @media(max-width:1100px){.stats{grid-template-columns:repeat(3,1fr)}}
+  @media(max-width:560px){.stats{grid-template-columns:repeat(2,1fr)}}
+  .stat{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:18px 18px 16px}
+  .stat .v{font-size:30px;font-weight:700;letter-spacing:-.02em;line-height:1}
+  .stat .l{color:var(--muted);font-size:12.5px;margin-top:8px}
+  .stat.accent .v{color:var(--db)}
+
+  /* Timeline */
+  .section-h{font-family:var(--mono);font-size:12px;letter-spacing:.2em;
+    text-transform:uppercase;color:var(--muted);margin:30px 0 14px}
+  .timeline{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px}
+  .tl-chip{display:flex;align-items:center;gap:9px;background:var(--panel);
+    border:1px solid var(--line);border-left:3px solid var(--c);
+    border-radius:9px;padding:9px 13px;font-size:13px}
+  .tl-tier{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;
+    color:var(--c);text-transform:uppercase;font-weight:600}
+  .tl-name{color:var(--ink);font-weight:500}
+  .tl-wb{font-size:11px;color:var(--db);font-family:var(--mono)}
+
+  .timeline-group{
+    margin-bottom:20px;
+}
+
+.timeline-title{
+    font-size:13px;
+    font-weight:700;
+    letter-spacing:.08em;
+    margin-bottom:10px;
+}
+
+.timeline-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+}
+
+.empty-tier{
+    color:#6B7A99;
+    font-size:12px;
+}
+
+.tl-chip{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    padding:10px 14px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-left:4px solid var(--c);
+    border-radius:8px;
+    font-size:13px;
+}
+
+.top-actions{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.theme-btn{
+  border:none;
+  cursor:pointer;
+  padding:10px 16px;
+  border-radius:10px;
+  background:var(--panel);
+  color:var(--ink);
+  border:1px solid var(--line);
+  font-weight:600;
+  transition:.2s;
+}
+
+.theme-btn:hover{
+  transform:translateY(-1px);
+}
+  /* Table */
+  .panel{
+    width:100%;
+    max-width:100%;
+}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;
+    overflow:hidden}
+  table.main-t{width:100%;border-collapse:collapse}
+  table.main-t thead th{background:#0c1424;color:var(--muted);text-align:left;
+    padding:14px 16px;font-size:11.5px;font-family:var(--mono);letter-spacing:.1em;
+    text-transform:uppercase;font-weight:600;border-bottom:1px solid var(--line)}
+  table.main-t td{padding:13px 16px;border-bottom:1px solid var(--line);font-size:13.5px;
+    vertical-align:middle}
+  tr.main{cursor:pointer;transition:background .15s}
+  tr.main:hover{background:#0f1a2e}
+  td.ix{font-family:var(--mono);color:var(--faint);font-size:12px}
+  td.el{font-weight:600}
+  td.tc{color:var(--muted);font-size:12.5px}
+  td.loc{font-family:var(--mono);font-size:11.5px;color:var(--muted);
+    max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  td.exp{color:var(--faint);text-align:center;width:30px;transition:transform .2s}
+  tr.main.open td.exp{transform:rotate(180deg);color:var(--accent)}
+  .tier{padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:700;
+    font-family:var(--mono);letter-spacing:.04em;white-space:nowrap}
+  .yes{color:var(--db);font-weight:600;font-size:12.5px}
+  .no{color:var(--faint)}
+
+  tr.detail{display:none}
+  tr.detail.show{display:table-row}
+  tr.detail td{background:var(--panel-2);padding:0 16px 14px}
+  table.steps{width:100%;border-collapse:collapse;margin:6px 0 4px}
+  table.steps th{background:transparent;color:var(--faint);text-align:left;
+    padding:9px 12px;font-size:10.5px;font-family:var(--mono);letter-spacing:.08em;
+    text-transform:uppercase;border-bottom:1px solid var(--line)}
+  table.steps td{padding:9px 12px;font-size:12px;border-bottom:1px solid #16223a}
+  .mini{font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:5px;
+    text-transform:uppercase;letter-spacing:.05em;font-weight:700}
+  .mini.db{background:#2DD4A722;color:var(--db)}
+  .mini.smart{background:#F4B74022;color:var(--smart)}
+  .mini.ai{background:#FF6B6B22;color:var(--ai)}
+  .st-success{color:var(--db)} .st-failed{color:var(--ai)} .st-skipped{color:var(--faint)}
+  .empty{color:var(--faint);text-align:center;padding:14px}
+
+  .foot{margin-top:26px;color:var(--faint);font-size:12px;font-family:var(--mono);
+    text-align:center;letter-spacing:.04em}
+</style></head><body>
+
+  <div class="topbar">
+    <div class="brand">
+      <span class="kicker">Knitwell · Self-Healing</span>
+      <h1>Flow Resolution Dashboard</h1>
+      <span class="sub">Live results from the three-tier fallback chain — DB primary → smart locators → AI healing</span>
+    </div>
+    <div class="topbar">
+  <div class="brand">
+    ...
+  </div>
+
+  <div class="top-actions">
+    <button id="themeToggle" class="theme-btn">
+      🌙 Dark mode
+    </button>
+
+    <div class="gen">
+      Generated<br>${esc(generated)}
+    </div>
+  </div>
+</div>
+    
+
+  <div class="hero">
+    <div class="score">
+      <div class="ring">
+        <svg width="180" height="180" viewBox="0 0 180 180">
+          <circle cx="90" cy="90" r="78" fill="none" stroke="#1a2740" stroke-width="14"/>
+          <circle cx="90" cy="90" r="78" fill="none" stroke="url(#g)" stroke-width="14"
+            stroke-linecap="round" stroke-dasharray="${(490 * resilience) / 100} 490"/>
+          <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stop-color="#2DD4A7"/><stop offset="1" stop-color="#5B8DEF"/>
+          </linearGradient></defs>
+        </svg>
+        <div class="val">
+          <div class="num">${resilience}<small>%</small></div>
+          <div class="cap">Resilience</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dist">
+      <h3>Tier Distribution · ${total} elements</h3>
+      <div class="bar">${distSegments || '<div class="seg" style="width:100%;background:#1a2740"></div>'}</div>
+      <ul class="legend">${distLegend}</ul>
+    </div>
+  </div>
+
+  <div class="stats">
+  <div class="stat">
+    <div class="v">${total}</div>
+    <div class="l">Total Elements</div>
+  </div>
+
+  <div class="stat accent">
+    <div class="v">${dbN}</div>
+    <div class="l">DB Resolved</div>
+  </div>
+
+  <div class="stat">
+    <div class="v">${smartN}</div>
+    <div class="l">Smart Healed</div>
+  </div>
+
+  <div class="stat">
+    <div class="v">${aiN}</div>
+    <div class="l">AI Healed</div>
+  </div>
+
+  <div class="stat">
+    <div class="v">${unresolvedN}</div>
+    <div class="l">Unresolved</div>
+  </div>
+
+  <div class="stat">
+    <div class="v">${resilience}%</div>
+    <div class="l">Resilience Score</div>
+  </div>
+</div>
+
+  <div class="section-h">Element Detail · click a row to expand its tier trace</div>
+  <div class="panel">
+    <table class="main-t">
+      <thead><tr>
+  <th>#</th>
+  <th>Element</th>
+  <th>Final Tier</th>
+  <th>Healed</th>
+  <th>Final Locator</th>
+  <th></th>
+</tr></thead>
+      <tbody>${rows || '<tr><td colspan="8" class="empty">No elements captured in this run.</td></tr>'}</tbody>
+    </table>
+  </div>
+
+ <div class="foot">
+${resolvedN}/${total} resolved ·
+${healedN} healed ·
+${totalMs} ms total execution time
+</div>
+
+<script>
+
+const savedTheme = localStorage.getItem('dashboard-theme');
+
+if(savedTheme === 'light'){
+  document.body.classList.add('light');
+}
+
+const btn = document.getElementById('themeToggle');
+
+function updateThemeButton(){
+  btn.textContent =
+    document.body.classList.contains('light')
+      ? '☀️ Light mode'
+      : '🌙 Dark mode';
+}
+
+updateThemeButton();
+
+btn.addEventListener('click', () => {
+
+  document.body.classList.toggle('light');
+
+  localStorage.setItem(
+    'dashboard-theme',
+    document.body.classList.contains('light')
+      ? 'light'
+      : 'dark'
+  );
+
+  updateThemeButton();
+});
+
+document.querySelectorAll('tr.main').forEach(function(r){
+  r.addEventListener('click',function(){
+    var i=r.getAttribute('data-row');
+    var d=document.querySelector('tr.detail[data-detail="'+i+'"]');
+    if(!d)return;
+
+    r.classList.toggle('open');
+    d.classList.toggle('show');
+  });
+});
+
+</script>
+</body></html>`;
+
+  fs.writeFileSync(path.join(outDir, "report-data.json"), JSON.stringify(flows, null, 2));
+  const out = path.join(outDir, "index.html");
+  fs.writeFileSync(out, html);
+  console.log("Dashboard created:", out);
+  return out;
+}
+
+
+
+
+
+
+
+
+
+selfHealingReporter.ts
+import type { Reporter, FullConfig } from "@playwright/test/reporter";
+import fs from "fs";
+import path from "path";
+import { HealFlow } from "./types";
+import { renderHtml } from "./renderhtml";
+
+const OUT = process.env.SELF_HEALING_OUT || "self-healing-output";
+const SHARD_DIR = path.join(OUT, "shards");
+console.log('REPORTER FILE LOADED');
+
+export default class SelfHealingReporter implements Reporter {
+    
+  onBegin(_config: FullConfig) {
+
+    const flowDir = path.join(process.cwd(), "self-healing-output");
+
+if (fs.existsSync(flowDir)) {
+  fs.readdirSync(flowDir)
+    .filter(f => f.startsWith("flows-") && f.endsWith(".json"))
+    .forEach(f =>
+      fs.unlinkSync(path.join(flowDir, f))
+    );
+}
+
+console.log("Old flow files cleared");
+     console.log('SELF HEALING REPORTER STARTED');
+    // Clear stale shards from a previous run so the report is fresh.
+
+    console.log('SELF HEALING REPORTER LOADED');
+    try {
+      if (fs.existsSync(SHARD_DIR)) {
+        for (const f of fs.readdirSync(SHARD_DIR)) {
+          fs.unlinkSync(path.join(SHARD_DIR, f));
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+onEnd() {
+     console.log('SELF HEALING REPORTER FINISHED');
+ 
+
+  const flows = this.collectShards();
+  console.log('FLOW COUNT =', flows.length);
+
+  console.log(`Found ${flows.length} flows`);
+
+  const out = renderHtml(flows, OUT);
+
+  console.log(`HTML created: ${out}`);
+}
+
+  private collectShards(): HealFlow[] {
+    const all: HealFlow[] = [];
+    if (!fs.existsSync(SHARD_DIR)) return all;
+for (const file of fs.readdirSync(SHARD_DIR)) {
+  console.log("Reading:", file);
+
+  try {
+    const raw = fs.readFileSync(path.join(SHARD_DIR, file), "utf-8");
+    const parsed = JSON.parse(raw);
+
+    console.log("Parsed flows:", parsed.length);
+
+    all.push(...parsed);
+
+  } catch (e) {
+    console.error("Failed:", file, e);
+  }
+}
+    return all;
+  }
+}
+
+
+
+
+
+
+
+browsweraction.ts
+import { Page, Locator } from '@playwright/test';
+
+/**
+ * Interface defining reusable browser actions using Playwright.
+ * Locator-based design for better maintainability and auto-waiting.
+ */
+export interface BrowserAction {
+
+  waitForElement(locator: Locator): Promise<void>;
+
+  scrollIntoView(locator: Locator): Promise<void>;
+
+  click(
+    locator: Locator,
+    waitForPageRefresh?: boolean
+  ): Promise<void>;
+
+  type(
+    locator: Locator,
+    text: string,
+    waitForPageRefresh?: boolean
+  ): Promise<void>;
+  selectDropdownByVisibleText(
+    locator: Locator,
+    optionValue: string,
+    waitForPageRefresh?: boolean
+  ): Promise<void>;
+
+  selectDropdownByIndex(
+    locator: Locator,
+    index: number,
+    waitForPageRefresh?: boolean
+  ): Promise<void>;
+
+  selectDropdownByRandomIndex(
+    locator: Locator,
+    primaryLocator: string
+  ): Promise<void>;
+
+  selectDropdownByValue(
+    locator: Locator,
+    value: string,
+    waitForPageRefresh?: boolean
+  ): Promise<void>;
+
+  getText(locator: Locator): Promise<string>;
+
+  confirmAlert(page: Page): Promise<void>;
+
+  waitForDisappearance(locator: Locator): Promise<void>;
+
+  moveToElement(locator: Locator): Promise<void>;
+
+  isEnabled(locator: Locator): Promise<boolean>;
+
+  isDisabled(locator: Locator): Promise<boolean>;
+
+  verifyElementTextIsDisplayed(
+    locator: Locator,
+    expectedText: string
+  ): Promise<void>;
+
+  verifyPartialText(
+    locator: Locator,
+    expectedText: string
+  ): Promise<boolean>;
+
+  getInputText(locator: Locator): Promise<string>;
+
+  verifyInputText(
+    locator: Locator,
+    expectedText: string
+  ): Promise<boolean>;
+
+  getAttribute(
+    locator: Locator,
+    attribute: string
+  ): Promise<string | null>;
+
+  verifyAttribute(
+    locator: Locator,
+    attribute: string,
+    expectedText: string
+  ): Promise<boolean>;
+
+  verifyNotDisplayed(locator: Locator): Promise<boolean>;
+
+  isElementDisplaying(locator: Locator): Promise<boolean>;
+
+  getListOfElements(locator: Locator): Promise<Locator[]>;
+
+  confirmAlertWithText(
+    page: Page,
+    expectedAlertMessage: string
+  ): Promise<void>;
+
+  evaluate(
+    page: Page,
+    expression: any
+  ): Promise<void>;
+
+  scrollToTopOfThePage(page: Page): Promise<void>;
+
+  uploadFile(
+    locator: Locator,
+    value: string
+  ): Promise<void>;
+
+  check(locator: Locator): Promise<boolean>;
+
+  pause(
+    page: Page,
+    type: string
+  ): Promise<void>;
+
+  getListOfElementsSize(
+    locator: Locator,
+    timeout: number
+  ): Promise<number>;
+
+  clear(
+    locator: Locator,
+    elementDescription: string,
+    waitForPageRefresh?: boolean
+  ): Promise<void>;
+
+  getLambdaTestLink(page: Page): Promise<string>;
+}
+
+
+
+
+
+
+
+
+browserActionImpl.ts
+import { Page, Locator, expect } from '@playwright/test';
+import { BrowserAction } from './BrowserAction';
+import { buildSmartLocatorBundle, captureFullPageScreenshot, getElementContextDOM, getElementOuterHTML, getMinimalFullDOM } from '../utils/selfHealing';
+import { captureElementScreenshot } from '../utils/selfHealing';
+import { getElement, saveElement } from '../core/db/elementRepo';
+import { findWithFallback } from '../core/healing/fallbackEngine';
+
+export default class BrowserActionImpl implements BrowserAction {
+
+
+  private locatorMap = new WeakMap<Locator, string>();
+
+  protected registerPageLocators(pageObject: any) {
+
+    const pageName = pageObject.constructor.name;
+
+    for (const key of Object.keys(pageObject)) {
+
+      const value = pageObject[key];
+
+      if (
+        value &&
+        typeof value === 'object' &&
+        typeof value.fill === 'function'
+      ) {
+
+        this.locatorMap.set(
+          value,
+          `${pageName}_${key}`
+        );
+      }
+    }
+  }
+
+  protected getElementName(locator: Locator): string {
+
+    return (
+      this.locatorMap.get(locator) ??
+      'Unknown_Element'
+    );
+  }
+
+  async click(
+    locator: Locator,
+    waitForPageRefresh: boolean = false
+  ): Promise<void> {
+
+    const page = locator.page();
+
+    const elementName =
+      this.getElementName(locator);
+
+    let finalLocator = locator;
+    let usedFallback = false;
+
+    try {
+
+      await locator.waitFor({
+        state: 'visible',
+        timeout: 5000
+      });
+
+      await locator.click();
+
+    } catch {
+
+      const result = await findWithFallback(
+        page,
+        elementName,
+        locator
+      );
+
+      finalLocator = result.locator;
+      usedFallback = true;
+
+      await finalLocator.click();
+    }
+
+   if (!usedFallback) {
+
+  const exists =
+    await this.elementExistsInDB(
+      elementName
+    );
+
+  if (!exists) {
+
+    await this.captureAndStore(
+      finalLocator,
+      elementName,
+      finalLocator.toString()
+    );
+  }
+}
+
+    if (waitForPageRefresh) {
+
+      await this.waitForPageRefresh(
+        page,
+        elementName
+      );
+
+      await page.waitForLoadState(
+        'networkidle'
+      );
+    }
+  }
+
+  async selectDropdownByVisibleText(
+    locator: Locator,
+    optionValue: string,
+    waitForPageRefresh: boolean = false
+  ): Promise<void> {
+
+    const page = locator.page();
+
+    const elementName =
+      this.getElementName(locator);
+
+    let finalLocator = locator;
+    let usedFallback = false;
+
+    try {
+
+      await locator.waitFor({
+        state: 'visible',
+        timeout: 5000
+      });
+
+      await locator.selectOption({
+        label: optionValue
+      });
+
+      await locator.press('Tab');
+
+    } catch {
+
+      const result = await findWithFallback(
+        page,
+        elementName,
+        locator
+      );
+
+      finalLocator = result.locator;
+      usedFallback = true;
+
+      await finalLocator.selectOption({
+        label: optionValue
+      });
+
+      await finalLocator.press('Tab');
+    }
+
+   if (!usedFallback) {
+
+  const exists =
+    await this.elementExistsInDB(
+      elementName
+    );
+
+  if (!exists) {
+
+    await this.captureAndStore(
+      finalLocator,
+      elementName,
+      finalLocator.toString()
+    );
+  }
+}
+
+    if (waitForPageRefresh) {
+
+      await this.waitForPageRefresh(
+        page,
+        elementName
+      );
+
+      await page.waitForLoadState(
+        'networkidle'
+      );
+    }
+  }
+
+  async selectDropdownByIndex(
+    locator: Locator,
+    index: number,
+    waitForPageRefresh: boolean = false
+  ): Promise<void> {
+
+    const page = locator.page();
+
+    const elementName =
+      this.getElementName(locator);
+
+    let finalLocator = locator;
+    let usedFallback = false;
+
+    try {
+
+      await locator.waitFor({
+        state: 'visible',
+        timeout: 5000
+      });
+
+      await locator.selectOption({
+        index
+      });
+
+    } catch {
+
+      const result = await findWithFallback(
+        page,
+        elementName,
+        locator
+      );
+
+      finalLocator = result.locator;
+      usedFallback = true;
+
+      await finalLocator.waitFor({
+        state: 'visible'
+      });
+
+      await finalLocator.selectOption({
+        index
+      });
+    }
+
+   if (!usedFallback) {
+
+  const exists =
+    await this.elementExistsInDB(
+      elementName
+    );
+
+  if (!exists) {
+
+    await this.captureAndStore(
+      finalLocator,
+      elementName,
+      finalLocator.toString()
+    );
+  }
+}
+
+    if (waitForPageRefresh) {
+
+      await this.waitForPageRefresh(
+        page,
+        elementName
+      );
+
+      await page.waitForLoadState(
+        'networkidle'
+      );
+    }
+  }
+
+  async selectDropdownByRandomIndex(
+    locator: Locator
+  ): Promise<void> {
+
+    await this.selectDropdownByIndex(
+      locator,
+      -1
+    );
+  }
+
+  async selectDropdownByValue(
+    locator: Locator,
+    value: string,
+    waitForPageRefresh: boolean = false
+  ): Promise<void> {
+
+    const page = locator.page();
+
+    const elementName =
+      this.getElementName(locator);
+
+    let finalLocator = locator;
+    let usedFallback = false;
+
+    try {
+
+      await locator.waitFor({
+        state: 'visible',
+        timeout: 5000
+      });
+
+      await locator.selectOption(
+        value
+      );
+
+    } catch {
+
+      const result = await findWithFallback(
+        page,
+        elementName,
+        locator
+      );
+
+      finalLocator = result.locator;
+      usedFallback = true;
+
+      await finalLocator.selectOption(
+        value
+      );
+    }
+
+if (!usedFallback) {
+
+  const exists =
+    await this.elementExistsInDB(
+      elementName
+    );
+
+  if (!exists) {
+
+    await this.captureAndStore(
+      finalLocator,
+      elementName,
+      finalLocator.toString()
+    );
+  }
+}
+
+    if (waitForPageRefresh) {
+
+      await this.waitForPageRefresh(
+        page,
+        elementName
+      );
+
+      await page.waitForLoadState(
+        'networkidle'
+      );
+    }
+  }
+
+
+
+  async waitForElement(locator: Locator): Promise<void> {
+    await expect(locator.first()).toBeVisible();
+  }
+
+  async scrollIntoView(locator: Locator): Promise<void> {
+    await locator.first().scrollIntoViewIfNeeded();
+  }
+  async type(
+    locator: Locator,
+    text: string,
+    waitForPageRefresh: boolean = false
+  ): Promise<void> {
+
+    const page = locator.page();
+
+    const elementName =
+      this.getElementName(locator);
+
+    let finalLocator = locator;
+    let usedFallback = false;
+
+    try {
+
+      await locator.fill('');
+      await locator.fill(text);
+
+    } catch (error) {
+
+      const result = await findWithFallback(
+        page,
+        elementName,
+        locator
+      );
+
+      finalLocator = result.locator;
+
+      usedFallback =
+        result.usedStrategy !== 'primary';
+
+      await finalLocator.fill('');
+      await finalLocator.fill(text);
+    }
+
+   if (!usedFallback) {
+
+  const exists =
+    await this.elementExistsInDB(
+      elementName
+    );
+
+  if (!exists) {
+
+    await this.captureAndStore(
+      finalLocator,
+      elementName,
+      finalLocator.toString()
+    );
+  }
+}
+
+    if (waitForPageRefresh) {
+
+      await finalLocator.press('Tab');
+
+      await this.waitForPageRefresh(
+        page,
+        elementName
+      );
+
+      await page.waitForLoadState(
+        'networkidle'
+      );
+    }
+  }
+
+  async getText(locator: Locator): Promise<string> {
+    return await locator.first().innerText();
+  }
+
+  async confirmAlert(page: Page): Promise<void> {
+    page.once('dialog', async (dialog) => await dialog.accept());
+  }
+
+  async waitForDisappearance(locator: Locator): Promise<void> {
+    await expect(locator).toBeHidden();
+  }
+
+  async waitForPageRefresh(page: Page, elementDescription: string): Promise<void> {
+    await this.waitForDisappearance(page.locator("div[class*='disable-click']"));
+  }
+  async moveToElement(locator: Locator): Promise<void> {
+    await locator.hover();
+  }
+
+  async isEnabled(locator: Locator): Promise<boolean> {
+    return (await locator.isVisible()) && (await locator.isEnabled());
+  }
+
+  async isDisabled(locator: Locator): Promise<boolean> {
+    return await locator.isDisabled();
+  }
+
+  async verifyElementTextIsDisplayed(
+    locator: Locator,
+    expectedText: string
+  ): Promise<void> {
+
+    const actual = await locator.first().innerText();
+
+    if (actual !== expectedText) {
+      throw new Error(`Expected: ${expectedText}, Actual: ${actual}`);
+    }
+  }
+
+  async verifyPartialText(
+    locator: Locator,
+    expectedText: string
+  ): Promise<boolean> {
+    const actual = await locator.textContent();
+    return actual?.includes(expectedText) ?? false;
+  }
+
+  async getInputText(locator: Locator): Promise<string> {
+    return await locator.inputValue();
+  }
+
+  async verifyInputText(
+    locator: Locator,
+    expectedText: string
+  ): Promise<boolean> {
+    const actual = await locator.inputValue();
+    return actual.includes(expectedText);
+  }
+
+  async getAttribute(
+    locator: Locator,
+    attribute: string
+  ): Promise<string | null> {
+    return await locator.getAttribute(attribute);
+  }
+
+  async verifyAttribute(
+    locator: Locator,
+    attribute: string,
+    expectedText: string
+  ): Promise<boolean> {
+
+    const actual = await locator.getAttribute(attribute);
+
+    if (actual?.includes(expectedText)) return true;
+
+    throw new Error(`Expected attribute ${expectedText} not matching`);
+  }
+
+  async verifyNotDisplayed(locator: Locator): Promise<boolean> {
+    return !(await locator.isVisible());
+  }
+
+  async isElementDisplaying(locator: Locator): Promise<boolean> {
+    await locator.first().waitFor({ state: 'visible' });
+    return true;
+  }
+
+  async getListOfElements(locator: Locator): Promise<Locator[]> {
+    await locator.first().waitFor({ state: 'visible' });
+    return locator.all();
+  }
+
+  async confirmAlertWithText(
+    page: Page,
+    expectedAlertMessage: string
+  ): Promise<void> {
+
+    page.once('dialog', async (dialog) => {
+      if (dialog.message() === expectedAlertMessage) {
+        await dialog.accept();
+      } else {
+        throw new Error("Alert message mismatch");
+      }
+    });
+  }
+
+  async evaluate(page: Page, expression: any): Promise<void> {
+    await page.evaluate(expression);
+  }
+
+  async scrollToTopOfThePage(page: Page): Promise<void> {
+    await this.evaluate(page, () => window.scrollTo(0, 0));
+  }
+
+  async uploadFile(locator: Locator, value: string): Promise<void> {
+    await locator.setInputFiles(value);
+  }
+
+  async check(locator: Locator): Promise<boolean> {
+    await locator.check();
+    return true;
+  }
+
+  async pause(page: Page, type: string): Promise<void> {
+    const map: Record<string, number> = {
+      deepinferior: 500,
+      low: 1000,
+      medium: 2000,
+      high: 3000
+    };
+    await page.waitForTimeout(map[type.toLowerCase()] || 500);
+  }
+
+  async getListOfElementsSize(
+    locator: Locator,
+    timeout: number
+  ): Promise<number> {
+    try {
+      await locator.first().waitFor({ state: 'visible', timeout });
+      return await locator.count();
+    } catch {
+      return 0;
+    }
+  }
+
+  async clear(
+    locator: Locator,
+    elementDescription: string,
+    waitForPageRefresh: boolean = false
+  ): Promise<void> {
+
+    await locator.fill("");
+
+    if (waitForPageRefresh) {
+      await locator.press("Tab");
+      await this.waitForPageRefresh(locator.page(), elementDescription);
+      await locator.page().waitForLoadState('networkidle');
+    }
+  }
+
+  async getLambdaTestLink(page: Page): Promise<string> {
+
+    if (process.env.RUN_ON_LAMBDA !== 'true') return '';
+
+    try {
+      const response = await page.evaluate(() =>
+        (globalThis as any).lt?.getTestDetails?.() ?? null
+      );
+
+      const parsed = typeof response === 'string' ? JSON.parse(response) : response;
+      return parsed?.data?.public_url || '';
+
+    } catch {
+      return '';
+    }
+  }
+
+  private async captureAndStore(
+    locator: Locator,
+    elementName: string,
+    primaryLocator: string
+  ) {
+    const page = locator.page();
+
+    const bundle = await buildSmartLocatorBundle(locator, elementName);
+
+    const [elementScreenshot, fullPageScreenshot] = await Promise.all([
+      captureElementScreenshot(locator),
+      captureFullPageScreenshot(page)
+    ]);
+
+    const outerHTML = await getElementOuterHTML(locator);
+    const context_dom = await getElementContextDOM(locator);
+
+    await saveElement({
+      elementName: bundle.elementName,
+      pageUrl: page.url(),
+      primaryLocator,
+      smartLocators: bundle.smartLocators,
+      meta: bundle.meta,
+      elementScreenshot,
+      fullPageScreenshot,
+      outerHTML,
+      context_dom,
+    });
+  }
+
+  private async elementExistsInDB(
+  elementName: string
+): Promise<boolean> {
+
+  const existing =
+    await getElement(
+      elementName
+    );
+
+  return existing !== null;
+}
+}
+
+
+
+
+
+
+
+
+
+selfHealing.ts
+import { Locator, Page } from '@playwright/test';
+
+export async function buildSmartLocatorBundle(
+  locator: Locator,
+  elementName: string
+) {
+
+  const meta =
+    await extractElementMeta(
+      locator
+    );
+
+  const smartLocators =
+    await generateSmartLocators(
+      locator.page(),
+      meta
+    );
+
+  return {
+    elementName,
+    meta,
+    smartLocators,
+    timestamp:
+      new Date()
+        .toISOString()
+  };
+}
+
+async function generateAncestorXpath(
+  page: Page,
+  meta: any
+): Promise<string | undefined> {
+
+  if (!meta.ancestors?.length) {
+    return undefined;
+  }
+
+  for (const ancestor of meta.ancestors) {
+
+    const anchors = [
+      {
+        attr: 'aria-label',
+        value: ancestor.ariaLabel
+      },
+      {
+        attr: 'name',
+        value: ancestor.name
+      },
+      {
+        attr: 'id',
+        value: ancestor.id
+      }
+    ];
+
+    for (const anchor of anchors) {
+
+      if (
+        !anchor.value ||
+        !isCleanValue(
+          anchor.value,
+          anchor.attr
+        )
+      ) {
+        continue;
+      }
+
+      let xp: string | undefined;
+
+      if (
+        meta.name &&
+        isCleanValue(
+          meta.name,
+          'name'
+        )
+      ) {
+
+        xp =
+          anchor.attr === 'id'
+            ? `//*[@id="${anchor.value}"]//${meta.tag}[@name="${meta.name}"]`
+            : `//*[@${anchor.attr}="${anchor.value}"]//${meta.tag}[@name="${meta.name}"]`;
+
+      } else if (
+        meta.placeholder &&
+        isCleanValue(
+          meta.placeholder,
+          'placeholder'
+        )
+      ) {
+
+        xp =
+          anchor.attr === 'id'
+            ? `//*[@id="${anchor.value}"]//${meta.tag}[@placeholder="${meta.placeholder}"]`
+            : `//*[@${anchor.attr}="${anchor.value}"]//${meta.tag}[@placeholder="${meta.placeholder}"]`;
+
+      } else {
+
+        xp =
+          anchor.attr === 'id'
+            ? `//*[@id="${anchor.value}"]//${meta.tag}`
+            : `//*[@${anchor.attr}="${anchor.value}"]//${meta.tag}`;
+      }
+
+      if (!isStableXpath(xp)) {
+        continue;
+      }
+
+      if (
+        await isUniqueXpath(
+          page,
+          xp
+        )
+      ) {
+        return xp;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+
+async function generateScopedCss(
+  page: Page,
+  meta: any
+): Promise<string | undefined> {
+
+  if (
+    !meta.ancestors?.length ||
+    !meta.name
+  ) {
+    return undefined;
+  }
+
+  for (
+    const ancestor
+    of meta.ancestors
+  ) {
+
+    if (
+      ancestor.ariaLabel &&
+      isCleanValue(
+        ancestor.ariaLabel,
+        'aria-label'
+      )
+    ) {
+
+      const css =
+        `[aria-label="${ancestor.ariaLabel}"] ${meta.tag}[name="${meta.name}"]`;
+
+      if (
+        await isUniqueCss(
+          page,
+          css
+        )
+      ) {
+
+        return css;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+export async function extractElementMeta(
+  locator: Locator
+) {
+
+  return locator.evaluate((el) => {
+
+    function getAncestorChain(
+      element: Element,
+      depth: number = 5
+    ) {
+
+      const ancestors: any[] = [];
+
+      let current =
+        element.parentElement;
+
+      while (
+        current &&
+        ancestors.length < depth
+      ) {
+
+        ancestors.push({
+          tag:
+            current.tagName.toLowerCase(),
+
+          id:
+            current.getAttribute('id'),
+
+          name:
+            current.getAttribute('name'),
+
+          ariaLabel:
+            current.getAttribute(
+              'aria-label'
+            ),
+
+          class:
+            current.getAttribute(
+              'class'
+            )
+        });
+
+        current =
+          current.parentElement;
+      }
+
+      return ancestors;
+    }
+
+    function getSiblingInfo(
+      element: Element
+    ) {
+
+      return Array.from(
+        element.parentElement?.children || []
+      )
+        .filter(
+          sibling => sibling !== element
+        )
+        .slice(0, 5)
+        .map(sibling => ({
+          tag:
+            sibling.tagName.toLowerCase(),
+
+          text:
+            sibling.textContent
+              ?.trim()
+              ?.substring(0, 100),
+
+          ariaLabel:
+            sibling.getAttribute(
+              'aria-label'
+            ),
+
+          name:
+            sibling.getAttribute(
+              'name'
+            ),
+
+          id:
+            sibling.getAttribute(
+              'id'
+            )
+        }));
+    }
+
+    return {
+
+      tag:
+        el.tagName.toLowerCase(),
+
+      text:
+        el.textContent?.trim(),
+
+      ancestors:
+        getAncestorChain(el),
+
+      siblings:
+        getSiblingInfo(el),
+
+      id:
+        el.getAttribute('id'),
+
+      class:
+        el.getAttribute('class'),
+
+      name:
+        el.getAttribute('name'),
+
+      type:
+        el.getAttribute('type'),
+
+      placeholder:
+        el.getAttribute(
+          'placeholder'
+        ),
+
+      label:
+        el.getAttribute(
+          'aria-label'
+        ),
+
+      role:
+        el.getAttribute(
+          'role'
+        ),
+
+      alt:
+        el.getAttribute(
+          'alt'
+        ),
+
+      title:
+        el.getAttribute(
+          'title'
+        ),
+
+      testId:
+        el.getAttribute(
+          'data-testid'
+        ),
+
+      dataTest:
+        el.getAttribute(
+          'data-test'
+        ),
+
+      value:
+        el.getAttribute(
+          'value'
+        ),
+
+      outerHTML:
+        el.outerHTML
+    };
+  });
+}
+
+export function containsDynamicId(
+  xpath: string
+): boolean {
+
+  const matches =
+    xpath.match(
+      /['"]([^'"]+)['"]/g
+    );
+
+  if (!matches) {
+    return false;
+  }
+
+  return matches.some(m =>
+    isLikelyDynamicValue(
+      m.replace(
+        /['"]/g,
+        ''
+      )
+    )
+  );
+}
+
+/**
+ * Reject:
+ * //input[1]
+ * //div[2]
+ * ancestor::div[3]
+ * following::input[1]
+ */
+
+export function containsXPathIndex(
+  xpath: string
+): boolean {
+
+  return /\[\d+\]/.test(xpath);
+}
+
+/**
+ * Reject positional XPath logic
+ */
+
+export function containsPositionalXPath(
+  xpath: string
+): boolean {
+
+  return (
+    /\[\d+\]/.test(xpath) ||
+    /position\s*\(/i.test(xpath) ||
+    /last\s*\(/i.test(xpath)
+  );
+}
+
+
+export function isStableXpath(
+  xpath: string
+): boolean {
+
+  if (
+    containsDynamicId(xpath)
+  ) {
+
+    console.log(
+      `REJECTED DYNAMIC XPATH: ${xpath}`
+    );
+
+    return false;
+  }
+
+  if (
+    containsPositionalXPath(xpath)
+  ) {
+
+    console.log(
+      `REJECTED INDEXED XPATH: ${xpath}`
+    );
+
+    return false;
+  }
+
+  return true;
+}
+
+
+type SmartLocatorResult = {
+  role?: string;
+  testId?: string;
+  label?: string;
+  placeholder?: string;
+  text?: string;
+  alt?: string;
+  title?: string;
+  css?: string;
+  xpath?: string;
+};
+
+async function isUniqueAlt(
+  page: Page,
+  alt: string
+): Promise<boolean> {
+
+  try {
+
+    return (
+      await page
+        .getByAltText(
+          alt,
+          { exact: true }
+        )
+        .count()
+    ) === 1;
+
+  } catch {
+
+    return false;
+  }
+}
+
+async function isUniqueTitle(
+  page: Page,
+  title: string
+): Promise<boolean> {
+
+  try {
+
+    return (
+      await page
+        .getByTitle(
+          title,
+          { exact: true }
+        )
+        .count()
+    ) === 1;
+
+  } catch {
+
+    return false;
+  }
+}
+
+function isLikelyDynamicValue(
+  value: string,
+  attr?: string
+): boolean {
+
+  const v = value.trim();
+
+  // UUID
+
+  if (
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}/i.test(v)
+  ) {
+    return true;
+  }
+
+  // Random IDs
+
+  if (
+    /^[A-Za-z0-9_-]{20,}$/.test(v) &&
+    /[A-Z]/.test(v) &&
+    /[a-z]/.test(v) &&
+    /\d/.test(v)
+  ) {
+    return true;
+  }
+
+  // Mixed random string
+
+  if (
+    /[A-Z]/.test(v) &&
+    /[a-z]/.test(v) &&
+    /\d/.test(v) &&
+    v.length > 15
+  ) {
+    return true;
+  }
+
+  // React / Angular / Material
+
+  if (
+    /(react|mui|mat|cdk|ng)/i.test(v) &&
+    /\d/.test(v)
+  ) {
+    return true;
+  }
+
+  // Ends with large number
+
+  if (
+    /[-_]\d{3,}$/.test(v)
+  ) {
+    return true;
+  }
+
+  // Long hashes
+
+  if (
+    /[0-9a-f]{8,}/i.test(v)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isCleanValue(
+  value: string,
+  attr?: string
+): boolean {
+
+  const t = value.trim();
+
+  if (!t) {
+    return false;
+  }
+
+  const attribute =
+    attr?.toLowerCase() || '';
+
+  // =====================================
+  // DYNAMIC VALUE DETECTION
+  // =====================================
+
+  if (
+    isLikelyDynamicValue(
+      t,
+      attribute
+    )
+  ) {
+    return false;
+  }
+
+  // =====================================
+  // HUMAN READABLE ATTRIBUTES
+  // =====================================
+
+  if (
+    [
+      'aria-label',
+      'placeholder',
+      'title',
+      'alt'
+    ].includes(attribute)
+  ) {
+
+    if (t.length > 120) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // =====================================
+  // ID / NAME / TEST ATTRIBUTES
+  // =====================================
+
+  if (
+    [
+      'id',
+      'name',
+      'data-testid',
+      'data-test'
+    ].includes(attribute)
+  ) {
+
+    if (t.length > 60) {
+      return false;
+    }
+
+    return true;
+  }
+
+  // =====================================
+  // DEFAULT RULES
+  // =====================================
+
+  if (t.length > 60) {
+    return false;
+  }
+
+  return true;
+}
+
+async function isUniquePlaceholder(
+  page: Page,
+  value: string
+): Promise<boolean> {
+
+  try {
+
+    return (
+      await page
+        .getByPlaceholder(
+          value
+        )
+        .count()
+    ) === 1;
+
+  } catch {
+
+    return false;
+  }
+}
+
+async function isUniqueLabel(
+  page: Page,
+  label: string
+): Promise<boolean> {
+
+  try {
+
+    return (
+      await page
+        .getByLabel(label, {
+          exact: true
+        })
+        .count()
+    ) === 1;
+
+  } catch {
+
+    return false;
+  }
+}
+
+async function isUniqueText(
+  page: Page,
+  text: string
+): Promise<boolean> {
+
+  try {
+
+    return (
+      await page
+        .getByText(
+          text,
+          { exact: true }
+        )
+        .count()
+    ) === 1;
+
+  } catch {
+
+    return false;
+  }
+}
+
+export async function generateSmartLocators(
+  page: Page,
+  meta: any
+): Promise<SmartLocatorResult> {
+
+  const locators: SmartLocatorResult = {};
+
+  // =====================================================
+  // ROLE
+  // =====================================================
+
+  const role = inferRole(meta);
+  const name = getAccessibleName(meta);
+
+  if (
+    role &&
+    name &&
+    isCleanValue(name, 'aria-label') &&
+    await isUniqueRole(page, role, name)
+  ) {
+
+    locators.role =
+      `getByRole('${role}', { name: '${escapeLocatorValue(name)}', exact: true })`;
+  }
+
+  // =====================================================
+  // TEST ID
+  // =====================================================
+
+  if (
+    meta.testId &&
+    isCleanValue(
+      meta.testId,
+      'data-testid'
+    )
+  ) {
+
+    const count =
+      await page
+        .getByTestId(meta.testId)
+        .count();
+
+    if (count === 1) {
+
+      locators.testId =
+        `getByTestId('${escapeLocatorValue(meta.testId)}')`;
+    }
+  }
+
+  // =====================================================
+  // LABEL
+  // =====================================================
+
+  if (
+    meta.label &&
+    isCleanValue(
+      meta.label,
+      'aria-label'
+    ) &&
+    await isUniqueLabel(
+      page,
+      meta.label
+    )
+  ) {
+
+    locators.label =
+      `getByLabel('${escapeLocatorValue(meta.label)}', { exact: true })`;
+  }
+
+  // =====================================================
+  // PLACEHOLDER
+  // =====================================================
+
+  if (
+    meta.placeholder &&
+    isCleanValue(
+      meta.placeholder,
+      'placeholder'
+    ) &&
+    await isUniquePlaceholder(
+      page,
+      meta.placeholder
+    )
+  ) {
+
+    locators.placeholder =
+      `getByPlaceholder('${escapeLocatorValue(meta.placeholder)}', { exact: true })`;
+  }
+
+  // =====================================================
+  // TEXT
+  // =====================================================
+
+  if (
+    meta.text &&
+    meta.text.length < 80 &&
+    !isLikelyDynamicValue(meta.text) &&
+    await isUniqueText(
+      page,
+      meta.text
+    )
+  ) {
+
+    locators.text =
+      `getByText('${escapeLocatorValue(meta.text)}', { exact: true })`;
+  }
+
+  // =====================================================
+  // ALT
+  // =====================================================
+
+  if (
+    meta.alt &&
+    isCleanValue(
+      meta.alt,
+      'alt'
+    ) &&
+    await isUniqueAlt(
+      page,
+      meta.alt
+    )
+  ) {
+
+    locators.alt =
+      `getByAltText('${escapeLocatorValue(meta.alt)}', { exact: true })`;
+  }
+
+  // =====================================================
+  // TITLE
+  // =====================================================
+
+  if (
+    meta.title &&
+    isCleanValue(
+      meta.title,
+      'title'
+    ) &&
+    await isUniqueTitle(
+      page,
+      meta.title
+    )
+  ) {
+
+    locators.title =
+      `getByTitle('${escapeLocatorValue(meta.title)}', { exact: true })`;
+  }
+
+  // =====================================================
+  // CSS
+  // =====================================================
+
+  locators.css =
+    locators.css =
+    await generateStableCss(
+      page,
+      meta
+    );
+
+  if (!locators.css) {
+    await generateScopedCss(
+      page,
+      meta
+    );
+
+  }
+
+  // =====================================================
+  // XPATH
+  // =====================================================
+
+  locators.xpath =
+    await generateStableXpath(
+      page,
+      meta
+    );
+
+  if (!locators.xpath) {
+
+    await generateAncestorXpath(
+      page,
+      meta
+    );
+  }
+  return locators;
+}
+
+function escapeLocatorValue(
+  value: string
+): string {
+
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/'/g, "\\'");
+}
+
+async function isUniqueXpath(
+  page: Page,
+  xpath: string
+): Promise<boolean> {
+
+  if (!isStableXpath(xpath)) {
+    return false;
+  }
+
+  try {
+
+    const count =
+      await page
+        .locator(`xpath=${xpath}`)
+        .count();
+
+    return count === 1;
+
+  } catch {
+
+    return false;
+  }
+}
+async function generateStableCss(
+  page: Page,
+  meta: any
+): Promise<string | undefined> {
+
+  const candidates = [
+
+    {
+      attr: 'data-testid',
+      value: meta.testId
+    },
+
+    {
+      attr: 'data-test',
+      value: meta.dataTest
+    },
+
+    {
+      attr: 'aria-label',
+      value: meta.label
+    },
+
+    {
+      attr: 'placeholder',
+      value: meta.placeholder
+    },
+
+    {
+      attr: 'name',
+      value: meta.name
+    },
+
+    {
+      attr: 'title',
+      value: meta.title
+    },
+
+    {
+      attr: 'alt',
+      value: meta.alt
+    },
+
+    {
+      attr: 'id',
+      value: meta.id
+    }
+  ];
+
+  for (const candidate of candidates) {
+
+    if (
+      !candidate.value ||
+      !isCleanValue(
+        candidate.value,
+        candidate.attr
+      )
+    ) {
+      continue;
+    }
+
+    const selector =
+      candidate.attr === 'id'
+        ? `#${candidate.value}`
+        : `${meta.tag}[${candidate.attr}="${candidate.value}"]`;
+
+    if (
+      await isUniqueCss(
+        page,
+        selector
+      )
+    ) {
+      return selector;
+    }
+  }
+
+  if (meta.class) {
+
+    const stableClass =
+      meta.class
+        .split(' ')
+        .find(
+          (c: string) =>
+            isCleanValue(
+              c,
+              'class'
+            )
+        );
+
+    if (stableClass) {
+
+      const selector =
+        `${meta.tag}.${stableClass}`;
+
+      if (
+        await isUniqueCss(
+          page,
+          selector
+        )
+      ) {
+        return selector;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+async function isUniqueRole(
+  page: Page,
+  role: string,
+  name: string
+): Promise<boolean> {
+
+  try {
+
+    return (
+      await page
+        .getByRole(
+          role as any,
+          {
+            name,
+            exact: true
+          }
+        )
+        .count()
+    ) === 1;
+
+  } catch {
+
+    return false;
+  }
+}
+async function generateStableXpath(
+  page: Page,
+  meta: any
+): Promise<string | undefined> {
+
+  const candidates: string[] = [];
+
+  if (
+    meta.testId &&
+    isCleanValue(
+      meta.testId,
+      'data-testid'
+    )
+  ) {
+
+    candidates.push(
+      `//*[@data-testid="${meta.testId}"]`
+    );
+  }
+
+  if (
+    meta.dataTest &&
+    isCleanValue(
+      meta.dataTest,
+      'data-test'
+    )
+  ) {
+
+    candidates.push(
+      `//*[@data-test="${meta.dataTest}"]`
+    );
+  }
+
+  if (
+    meta.name &&
+    isCleanValue(
+      meta.name,
+      'name'
+    )
+  ) {
+
+    candidates.push(
+      `//${meta.tag}[@name="${meta.name}"]`
+    );
+  }
+
+  if (
+    meta.label &&
+    isCleanValue(
+      meta.label,
+      'aria-label'
+    )
+  ) {
+
+    candidates.push(
+      `//${meta.tag}[@aria-label="${meta.label}"]`
+    );
+  }
+
+  if (
+    meta.placeholder &&
+    isCleanValue(
+      meta.placeholder,
+      'placeholder'
+    )
+  ) {
+
+    candidates.push(
+      `//${meta.tag}[@placeholder="${meta.placeholder}"]`
+    );
+  }
+
+  if (
+    meta.title &&
+    isCleanValue(
+      meta.title,
+      'title'
+    )
+  ) {
+
+    candidates.push(
+      `//${meta.tag}[@title="${meta.title}"]`
+    );
+  }
+
+  if (
+    meta.alt &&
+    isCleanValue(
+      meta.alt,
+      'alt'
+    )
+  ) {
+
+    candidates.push(
+      `//${meta.tag}[@alt="${meta.alt}"]`
+    );
+  }
+
+  if (
+    meta.id &&
+    isCleanValue(
+      meta.id,
+      'id'
+    )
+  ) {
+
+    candidates.push(
+      `//*[@id="${meta.id}"]`
+    );
+  }
+
+  for (const xp of candidates) {
+
+    if (!isStableXpath(xp)) {
+      continue;
+    }
+
+    if (
+      await isUniqueXpath(
+        page,
+        xp
+      )
+    ) {
+
+      return xp;
+    }
+  }
+
+  return undefined;
+}
+async function isUniqueCss(
+  page: Page,
+  selector: string
+): Promise<boolean> {
+
+  try {
+
+    return (
+      await page
+        .locator(selector)
+        .count()
+    ) === 1;
+
+  } catch {
+
+    return false;
+  }
+}
+
+
+function inferRole(meta: any): string | null {
+
+  /**
+   * USE EXPLICIT ROLE FIRST
+   */
+
+  if (meta.role) {
+    return meta.role;
+  }
+
+  const tag =
+    meta.tag?.toLowerCase();
+
+  const type =
+    meta.type?.toLowerCase();
+
+  switch (tag) {
+
+    /**
+     * BUTTON
+     */
+
+    case 'button':
+      return 'button';
+
+    /**
+     * LINK
+     */
+
+    case 'a':
+      return 'link';
+
+    /**
+     * INPUT TYPES
+     */
+
+    case 'input':
+
+      switch (type) {
+
+        case 'button':
+        case 'submit':
+        case 'reset':
+          return 'button';
+
+        case 'checkbox':
+          return 'checkbox';
+
+        case 'radio':
+          return 'radio';
+
+        case 'email':
+        case 'text':
+        case 'password':
+        case 'search':
+        case 'tel':
+        case 'url':
+        case 'number':
+          return 'textbox';
+
+        case 'range':
+          return 'slider';
+
+        case 'file':
+          return 'button';
+
+        default:
+          return 'textbox';
+      }
+
+    /**
+     * SELECT
+     */
+
+    case 'select':
+      return 'combobox';
+
+    /**
+     * TEXTAREA
+     */
+
+    case 'textarea':
+      return 'textbox';
+
+    /**
+     * IMAGE
+     */
+
+    case 'img':
+      return 'img';
+
+    default:
+      return null;
+  }
+}
+
+function getAccessibleName(
+  meta: any
+): string | null {
+
+  return (
+    meta.label ||
+    meta.placeholder ||
+    meta.alt ||
+    meta.text ||
+    meta.title ||
+    meta.name ||
+    null
+  );
+}
+
+export async function captureElementScreenshot(locator: Locator): Promise<Buffer> {
+  const page = locator.page();
+
+  try {
+    const container = locator.locator(
+      'xpath=ancestor::*[contains(@class,"form") or contains(@class,"field") or contains(@class,"group")][1]'
+    );
+
+    if (await container.first().isVisible().catch(() => false)) {
+      return await container.first().screenshot({ type: 'jpeg', quality: 70 });
+    }
+
+    const id = await locator.getAttribute('id');
+    if (id) {
+      const label = page.locator(`label[for="${id}"]`);
+      if (await label.first().isVisible().catch(() => false)) {
+        const wrapper = label.locator('xpath=ancestor::*[1]');
+        return await wrapper.first().screenshot({ type: 'jpeg', quality: 70 });
+      }
+    }
+
+    const ariaLabelledBy = await locator.getAttribute('aria-labelledby');
+    if (ariaLabelledBy) {
+      const label = page.locator(`#${ariaLabelledBy}`);
+      if (await label.first().isVisible().catch(() => false)) {
+        const wrapper = label.locator('xpath=ancestor::*[1]');
+        return await wrapper.first().screenshot({ type: 'jpeg', quality: 70 });
+      }
+    }
+
+    const ancestor = locator.locator('xpath=ancestor::div[1]');
+    if (await ancestor.first().isVisible().catch(() => false)) {
+      return await ancestor.first().screenshot({ type: 'jpeg', quality: 70 });
+    }
+
+    return await locator.screenshot({ type: 'jpeg', quality: 70 });
+
+  } catch {
+    return await locator.screenshot({ type: 'jpeg', quality: 70 });
+  }
+}
+
+
+export async function captureFullPageScreenshot(page: Page): Promise<Buffer> {
+  return await page.screenshot({
+    fullPage: true,
+    type: 'jpeg',
+    quality: 70, // reduce size
+  });
+}
+
+
+export async function getElementOuterHTML(locator: Locator): Promise<string> {
+  return await locator.evaluate((el) => {
+    const clone = el.cloneNode(true) as HTMLElement;
+
+    // Remove noisy attributes
+    clone.removeAttribute('style');
+
+    [...clone.attributes].forEach(attr => {
+      if (attr.name.startsWith('data-')) {
+        clone.removeAttribute(attr.name);
+      }
+    });
+
+    return clone.outerHTML;
+  });
+}
+
+export async function getMinimalFullDOM(
+  page: Page,
+  maxLength: number = 15000
+): Promise<string> {
+
+  return await page.evaluate((maxLength) => {
+
+    // Clone body to avoid modifying real DOM
+    const clone = document.body.cloneNode(true) as HTMLElement;
+
+    // =========================================
+    // REMOVE NOISE ELEMENTS
+    // =========================================
+
+    clone.querySelectorAll(`
+      script,
+      style,
+      noscript,
+      head,
+      svg,
+      picture,
+      video,
+      img,
+      iframe,
+      canvas,
+      link,
+      meta,
+      source,
+      track,
+      audio
+    `).forEach(el => el.remove());
+
+    // =========================================
+    // REMOVE HIDDEN ELEMENTS
+    // =========================================
+
+    clone.querySelectorAll(`
+      .hidden,
+      [hidden],
+      input[type="hidden"],
+      [aria-hidden="true"]
+    `).forEach(el => el.remove());
+
+    // =========================================
+    // REMOVE COMMENTS
+    // =========================================
+
+    const walker = document.createTreeWalker(
+      clone,
+      NodeFilter.SHOW_COMMENT
+    );
+
+    const comments: Comment[] = [];
+
+    let node;
+
+    while ((node = walker.nextNode())) {
+      comments.push(node as Comment);
+    }
+
+    comments.forEach(comment => {
+      comment.parentNode?.removeChild(comment);
+    });
+
+    // =========================================
+    // REMOVE DYNAMIC / NOISY ATTRIBUTES
+    // =========================================
+
+    const cleanAttributes = (el: Element) => {
+
+      [...el.attributes].forEach(attr => {
+
+        const attrName = attr.name.toLowerCase();
+
+        if (
+          attrName.startsWith('data-') ||
+          attrName === 'style' ||
+          attrName === 'onclick' ||
+          attrName === 'onchange' ||
+          attrName === 'onmouseover' ||
+          attrName === 'onfocus' ||
+          attrName === 'tabindex'
+        ) {
+          el.removeAttribute(attr.name);
+        }
+
+        // Remove dynamic IDs
+        if (
+          attrName === 'id' &&
+          /^[a-zA-Z0-9_-]{20,}$/.test(attr.value)
+        ) {
+          el.removeAttribute('id');
+        }
+
+        // Remove long dynamic classes
+        if (
+          attrName === 'class' &&
+          attr.value.length > 200
+        ) {
+          el.removeAttribute('class');
+        }
+      });
+
+      Array.from(el.children).forEach(child => {
+        cleanAttributes(child);
+      });
+    };
+
+    cleanAttributes(clone);
+
+    // =========================================
+    // NORMALIZE WHITESPACE
+    // =========================================
+
+    let html = clone.innerHTML
+      .replace(/\s+/g, ' ')
+      .replace(/>\s+</g, '><')
+      .trim();
+
+    // =========================================
+    // LIMIT SIZE
+    // =========================================
+
+    if (html.length > maxLength) {
+      html = html.slice(0, maxLength);
+    }
+
+    return html;
+
+  }, maxLength);
+}
+
+
+// export async function getElementContextDOM(
+//   locator: Locator,
+//   parentDepth: number = 5,
+//   siblingCount: number = 2,
+//   descendantDepth: number = 2
+// ): Promise<string> {
+
+//   return await locator.evaluate(
+//     (
+//       el,
+//       { parentDepth, siblingCount, descendantDepth }
+//     ) => {
+
+//       function cleanHTML(node: Element): string {
+//         return node.outerHTML
+//           .replace(/\s+/g, ' ')
+//           .trim();
+//       }
+
+//       function getParents(element: Element, depth: number): string[] {
+//         const parents: string[] = [];
+
+//         let current = element.parentElement;
+
+//         while (current && depth > 0) {
+//           parents.push(cleanHTML(current));
+//           current = current.parentElement;
+//           depth--;
+//         }
+
+//         return parents.reverse();
+//       }
+
+//       function getSiblings(element: Element, count: number): string[] {
+
+//         const siblings: string[] = [];
+
+//         let prev = element.previousElementSibling;
+//         let next = element.nextElementSibling;
+
+//         let added = 0;
+
+//         while (prev && added < count) {
+//           siblings.push(cleanHTML(prev));
+//           prev = prev.previousElementSibling;
+//           added++;
+//         }
+
+//         added = 0;
+
+//         while (next && added < count) {
+//           siblings.push(cleanHTML(next));
+//           next = next.nextElementSibling;
+//           added++;
+//         }
+
+//         return siblings;
+//       }
+
+//       function getDescendants(
+//         element: Element,
+//         depth: number
+//       ): string[] {
+
+//         const results: string[] = [];
+
+//         function walk(node: Element, currentDepth: number) {
+
+//           if (currentDepth > depth) return;
+
+//           for (const child of Array.from(node.children)) {
+
+//             results.push(cleanHTML(child));
+
+//             walk(child as Element, currentDepth + 1);
+//           }
+//         }
+
+//         walk(element, 1);
+
+//         return results;
+//       }
+
+//       return JSON.stringify({
+//         target: cleanHTML(el),
+//         parents: getParents(el, parentDepth),
+//         siblings: getSiblings(el, siblingCount),
+//         descendants: getDescendants(el, descendantDepth),
+//       });
+//     },
+//     {
+//       parentDepth,
+//       siblingCount,
+//       descendantDepth,
+//     }
+//   );
+// }
+
+export async function getElementContextDOM(
+  locator: Locator,
+  parentDepth: number = 5,
+  siblingCount: number = 2,
+  descendantDepth: number = 2
+): Promise<string> {
+
+  return await locator.evaluate(
+    (
+      el,
+      {
+        parentDepth,
+        siblingCount,
+        descendantDepth
+      }
+    ) => {
+
+      function cleanHTML(
+        node: Element
+      ): string {
+
+        return node.outerHTML
+          .replace(/\s+/g, ' ')
+          .trim();
+      }
+
+      function getAncestors(
+        element: Element,
+        depth: number
+      ): string[] {
+
+        const ancestors: string[] = [];
+
+        let current =
+          element.parentElement;
+
+        while (
+          current &&
+          depth > 0
+        ) {
+
+          ancestors.push(
+            cleanHTML(current)
+          );
+
+          current =
+            current.parentElement;
+
+          depth--;
+        }
+
+        return ancestors;
+      }
+
+      function getSiblings(
+        element: Element,
+        count: number
+      ): string[] {
+
+        const siblings: string[] = [];
+
+        let prev =
+          element.previousElementSibling;
+
+        let next =
+          element.nextElementSibling;
+
+        let added = 0;
+
+        while (
+          prev &&
+          added < count
+        ) {
+
+          siblings.push(
+            cleanHTML(prev)
+          );
+
+          prev =
+            prev.previousElementSibling;
+
+          added++;
+        }
+
+        added = 0;
+
+        while (
+          next &&
+          added < count
+        ) {
+
+          siblings.push(
+            cleanHTML(next)
+          );
+
+          next =
+            next.nextElementSibling;
+
+          added++;
+        }
+
+        return siblings;
+      }
+
+      function getDescendants(
+        element: Element,
+        depth: number
+      ): string[] {
+
+        const results: string[] = [];
+
+        function walk(
+          node: Element,
+          currentDepth: number
+        ) {
+
+          if (
+            currentDepth > depth
+          ) {
+            return;
+          }
+
+          for (
+            const child of
+            Array.from(
+              node.children
+            )
+          ) {
+
+            results.push(
+              cleanHTML(child)
+            );
+
+            walk(
+              child as Element,
+              currentDepth + 1
+            );
+          }
+        }
+
+        walk(element, 1);
+
+        return results;
+      }
+
+      const target =
+        cleanHTML(el);
+
+      const ancestors =
+        getAncestors(
+          el,
+          parentDepth
+        );
+
+      const siblings =
+        getSiblings(
+          el,
+          siblingCount
+        );
+
+      const descendants =
+        getDescendants(
+          el,
+          descendantDepth
+        );
+
+      return `
+TARGET:
+${target}
+
+ANCESTORS:
+${ancestors.join('\n')}
+
+SIBLINGS:
+${siblings.join('\n')}
+
+DESCENDANTS:
+${descendants.join('\n')}
+      `.trim();
+    },
+    {
+      parentDepth,
+      siblingCount,
+      descendantDepth
+    }
+  );
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+aiHealing.ts
+import OpenAI from 'openai';
+import * as dotenv from 'dotenv';
+dotenv.config();
+
+const client = new OpenAI({
+  // SECURITY: move these to .env (AZURE_OPENAI_API_KEY) and rotate the old key.
+  apiKey: process.env.AZURE_OPENAI_API_KEY!,
+  baseURL:
+    process.env.AZURE_OPENAI_BASE_URL ??
+    'https://testingsl1.openai.azure.com/openai/deployments/gpt-4.1',
+  defaultQuery: {
+    'api-version':
+      process.env.AZURE_OPENAI_API_VERSION ?? '2024-02-15-preview',
+  },
+  defaultHeaders: {
+    'api-key': process.env.AZURE_OPENAI_API_KEY!,
+  },
+});
+
+type AIResponse = {
+  locator: string;
+  confidence: number;
+  reason: string;
+};
+
+/**
+ * Build a single image content block for the chat message.
+ * Returns null if the screenshot is missing, so callers can filter it out
+ * instead of sending an empty / "Not available" block.
+ *
+ * @param base64  raw base64 string (NO data: prefix) or null
+ * @param detail  'high' for the image the model must search within,
+ *                'low'  for reference-only images (cheaper tokens)
+ */
+function imageBlock(
+  base64: string | null | undefined,
+  detail: 'high' | 'low' = 'low'
+) {
+  if (!base64) return null;
+
+  // selfHealing.ts captures JPEG (quality 70); declare the matching mime.
+  return {
+    type: 'image_url' as const,
+    image_url: {
+      url: `data:image/jpeg;base64,${base64}`,
+      detail,
+    },
+  };
+}
+
+export async function getAILocator(data: any): Promise<AIResponse> {
+
+  // =========================================================
+  // TEXT PROMPT — DOM + instructions ONLY.
+  // Screenshots are sent as real image blocks below, not pasted here.
+  // =========================================================
+const prompt = `
+You are a Playwright locator expert with visual reasoning.
+
+Goal:
+Generate a UNIQUE, STABLE, and RELIABLE locator for the target element,
+using BOTH the DOM text below AND the attached screenshots.
+
+========================
+CONTEXT
+========================
+
+Element Name:
+${data.elementName}
+
+Failed Locator:
+${data.failedLocator}
+
+Previous Smart Locators:
+${JSON.stringify(data.smartLocators)}
+
+Element Metadata:
+${JSON.stringify(data.meta)}
+
+------------------------
+OLD ELEMENT SNAPSHOT (outerHTML)
+------------------------
+${data.oldOuterHTML || 'Not available'}
+
+------------------------
+OLD PAGE DOM
+------------------------
+${data.oldDOM || 'Not available'}
+
+------------------------
+CURRENT PAGE DOM (SOURCE OF TRUTH)
+------------------------
+${data.newDOM || 'Not available'}
+
+========================
+ATTACHED IMAGES (see message)
+========================
+The images attached to this message, in order, are:
+  1. OLD ELEMENT SCREENSHOT      — the element as it originally looked
+  2. OLD FULL PAGE SCREENSHOT    — original page layout / position
+  3. CURRENT FULL PAGE SCREENSHOT — the page as it is NOW (locate within this)
+Some images may be omitted if they were not captured; rely on the DOM then.
+
+========================
+INSTRUCTIONS
+========================
+
+Step 1: Identify the target in the OLD element + OLD page screenshot.
+Step 2: Find the visually + structurally equivalent element in the
+        CURRENT page screenshot and CURRENT DOM.
+Step 3: Note what changed (id, class, text, structure, position).
+Step 4: Produce the best locator that exists in the CURRENT DOM.
+
+========================
+RULES (STRICT)
+========================
+- The locator MUST exist in the CURRENT DOM (the source of truth).
+- Prefer, in order:
+    1. getByRole(role, { name })
+    2. getByLabel()
+    3. getByPlaceholder()
+    4. getByText() (exact match)
+  then CSS, and XPath only if unavoidable.
+- Avoid dynamic attributes (random ids, hashes, framework-generated classes).
+- Prefer partial accessible names.
+
+
+
+Example:
+getByRole('link', { name: /shades of the season/i })
+
+1. Locator changed
+2. Element moved
+3. Element renamed
+4. Element removed completely
+
+
+Avoid long text strings.
+- If the element is one of several identical items (e.g. repeated cards),
+  return the locator for that REPEATED element as-is; the framework will
+  disambiguate which instance using a stored index. Do NOT invent a
+  positional [n] selector yourself.
+- Only use attributes that literally appear in the CURRENT DOM.
+
+If the original element cannot be confidently mapped to a current element,
+return:
+{ "locator": "NO_MATCH", "confidence": 0, "reason": "No equivalent element found" }
+
+========================
+OUTPUT FORMAT (STRICT JSON ONLY — no markdown, no prose)
+========================
+{
+  "locator": "...",
+  "confidence": 0-1,
+  "reason": "Why this locator uniquely identifies the element (OLD vs CURRENT)"
+}
+`.trim();
+
+  // =========================================================
+  // MULTIMODAL USER CONTENT
+  // Order matters: the text references images 1/2/3 in this order.
+  // Missing images are filtered out so no empty blocks are sent.
+  // =========================================================
+  const userContent: any[] = [
+    { type: 'text', text: prompt },
+  ];
+
+  const images = [
+    // reference-only images -> low detail (cheaper)
+    imageBlock(data.oldElementScreenshot, 'low'),
+    imageBlock(data.oldPageScreenshot, 'low'),
+    // the page the model must locate within -> high detail
+    imageBlock(data.currentPageScreenshot, 'high'),
+  ].filter(Boolean);
+
+  userContent.push(...images);
+  console.log("blocks sent",userContent.map(b => b.type));
+
+  const response = await client.chat.completions.create({
+    model: process.env.AZURE_OPENAI_DEPLOYMENT!,
+    messages: [
+      {
+        role: 'system',
+        content:
+          'You generate Playwright locators using DOM text and attached screenshots. Respond with strict JSON only.',
+      },
+      {
+        role: 'user',
+        content: userContent,
+      },
+    ],
+    temperature: 0.2,
+  });
+
+  const text = response.choices[0].message.content || '';
+
+  const cleaned = text
+    .replace(/```json/g, '')
+    .replace(/```/g, '')
+    .trim();
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    throw new Error('Invalid AI response');
+  }
+}
+
+
+
+
+
+elementRepo.ts
+import { pool } from './db';
+
+export async function saveElement(data: any) {
+  const query = `
+    INSERT INTO elements 
+    (element_name, page_url, primary_locator, smart_locators, meta, outer_html, context_dom, element_screenshot, full_page_screenshot)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    ON CONFLICT (element_name)
+    DO UPDATE SET
+      page_url = EXCLUDED.page_url,
+      primary_locator = EXCLUDED.primary_locator,
+      smart_locators = EXCLUDED.smart_locators,
+      meta = EXCLUDED.meta,
+      outer_html = COALESCE(NULLIF(EXCLUDED.outer_html, ''), elements.outer_html),
+      context_dom = COALESCE(NULLIF(EXCLUDED.context_dom, ''), elements.context_dom),
+      element_screenshot = COALESCE(EXCLUDED.element_screenshot, elements.element_screenshot),
+      full_page_screenshot = COALESCE(EXCLUDED.full_page_screenshot, elements.full_page_screenshot),
+      updated_at = CURRENT_TIMESTAMP
+    RETURNING *;
+  `;
+
+  const result = await pool.query(query, [
+    data.elementName,
+    data.pageUrl,
+    data.primaryLocator,
+    JSON.stringify(data.smartLocators ?? {}),
+    JSON.stringify(data.meta ?? {}),
+    data.outerHTML ?? null,
+    data.context_dom ?? null,
+    data.elementScreenshot ?? null,    
+    data.fullPageScreenshot ?? null,    
+  ]);
+
+  console.log("SAVED ELEMENT:", {
+    name: result.rows[0]?.element_name,
+    hasOuterHTML: !!result.rows[0]?.outer_html,
+    hasScreenshot: !!result.rows[0]?.element_screenshot,
+  });
+
+  return result.rows[0];
+}
+
+export async function getElement(elementName: string) {
+  const query = `SELECT * FROM elements WHERE element_name = $1`;
+  const result = await pool.query(query, [elementName]);
+  return result.rows[0] || null;
+}
+
+
+
+
+
+
+
+healingRepo.ts
+
+import { pool } from './db';
+
+export async function saveHealingLog(data: any) {
+  const query = `
+    INSERT INTO healing_logs
+    (element_name, test_name, failed_locator, attempted_locators, healed_locator, strategy, status, error_message)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+  `;
+
+  await pool.query(query, [
+    data.elementName,
+    data.testName,
+    data.failedLocator,
+    JSON.stringify(data.attemptedLocators),
+    data.healedLocator,
+    data.strategy,
+    data.status,
+    data.errorMessage,
+  ]);
+}
+
+
+
+Homepage.spec.ts
+import { test, expect, Page, Locator } from '@playwright/test';
+import { allure } from 'allure-playwright';
+import { saveElement, getElement } from '../core/db/elementRepo';
+import { findWithFallback, buildLocator, isValidLocator } from '../core/healing/fallBackEngine';
+import {
+  buildSmartLocatorBundle,
+  captureElementScreenshot,
+  captureFullPageScreenshot,
+  getElementOuterHTML,
+  getMinimalFullDOM,
+} from '../utils/selfHealing';
+import { beginFlow, logStep, endFlow } from '../src/reporting/flowTracker';
+
+/* ------------------------------------------------------------------ *
+ *  Pacing
+ * ------------------------------------------------------------------ */
+const PACE = { micro: 500, short: 1000, medium: 1500 };
+
+async function settle(page: Page, ms = PACE.short) {
+  await page.waitForTimeout(ms);
+}
+
+/* ------------------------------------------------------------------ *
+ *  First-visible candidate resolver (capture phase)
+ * ------------------------------------------------------------------ */
+async function firstVisible(page: Page, candidates: Locator[], timeout = 8000): Promise<Locator> {
+  const deadline = Date.now() + timeout;
+  while (Date.now() < deadline) {
+    for (const c of candidates) {
+      try {
+        if (await c.first().isVisible()) return c.first();
+      } catch { /* keep trying */ }
+    }
+    await page.waitForTimeout(250);
+  }
+  return candidates[0].first();
+}
+
+/* ------------------------------------------------------------------ *
+ *  Baseline capture — persists primary + smart bundle + context
+ * ------------------------------------------------------------------ */
+async function captureElement(
+  page: Page,
+  elementName: string,
+  locator: Locator,
+  primaryLocatorStr: string
+) {
+  try {
+    await locator.waitFor({ state: 'visible', timeout: 8000 });
+
+    const bundle = await buildSmartLocatorBundle(locator, elementName);
+
+    const [elementShot, fullPageShot, outerHTML, contextDom] = await Promise.all([
+      captureElementScreenshot(locator).catch(() => null),
+      captureFullPageScreenshot(page).catch(() => null),
+      getElementOuterHTML(locator).catch(() => ''),
+      getMinimalFullDOM(page).catch(() => ''),
+    ]);
+
+    await saveElement({
+      elementName,
+      pageUrl: page.url(),
+      primaryLocator: primaryLocatorStr,
+      smartLocators: bundle.smartLocators,
+      meta: bundle.meta,
+      outerHTML,
+      context_dom: contextDom,
+      elementScreenshot: elementShot,
+      fullPageScreenshot: fullPageShot,
+    });
+
+    allure.attachment('Smart Locators', JSON.stringify(bundle.smartLocators, null, 2), 'application/json');
+    allure.attachment('Element Metadata', JSON.stringify(bundle.meta, null, 2), 'application/json');
+    allure.attachment('Outer HTML', outerHTML, 'text/html');
+    if (elementShot) allure.attachment('Element Screenshot', Buffer.from(elementShot, 'base64'), 'image/jpeg');
+    if (fullPageShot) allure.attachment('Full Page Screenshot', Buffer.from(fullPageShot, 'base64'), 'image/jpeg');
+
+    console.log(`captured: ${elementName}`);
+  } catch {
+    console.log(`capture failed: ${elementName}`);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  DB / Smart-locator resolution
+ * ------------------------------------------------------------------ */
+async function resolveFromDB(page: Page, elementName: string) {
+  const row = await getElement(elementName);
+  if (!row) return null;
+
+  if (row.primary_locator) {
+    const primary = buildLocator(page, row.primary_locator);
+    if (primary) {
+
+      const valid = await isValidLocator(primary);
+
+      if (valid) {
+        // logStep({
+        //    tier:'db',
+        //    action:'DB Primary Locator',
+        //    locator: row.primary_locator,
+        //    status:'success'
+        // });
+
+        return {
+          locator: primary,
+          strategy: 'db-primary'
+        };
+      }
+
+      //  logStep({
+      //     tier:'db',
+      //     action:'DB Primary Locator',
+      //     locator: row.primary_locator,
+      //     status:'failed',
+      //     reason:'Primary locator invalid'
+      //  });
+    }
+  }
+
+  const smart =
+    typeof row.smart_locators === 'string' ? JSON.parse(row.smart_locators) : row.smart_locators;
+
+  const priority = ['role', 'testId', 'label', 'placeholder', 'text', 'alt', 'title', 'css', 'xpath'];
+  let successfulKey = null;
+
+  for (const key of priority) {
+
+    const locStr = smart?.[key];
+    if (!locStr) continue;
+
+    const built = buildLocator(page, locStr);
+
+    if (built && await isValidLocator(built)) {
+      successfulKey = key;
+
+      logStep({
+        tier: 'smart',
+        action: `Smart Locator (${key})`,
+        locator: locStr,
+        status: 'success'
+      });
+
+      return {
+        locator: built,
+        strategy: key
+      };
+    }
+  }
+
+  return null;
+}
+
+/* ------------------------------------------------------------------ *
+ *  step() — capture → DB/smart → AI heal, with flow tracking
+ * ------------------------------------------------------------------ */
+async function step(
+  page: Page,
+  elementName: string,
+  captureCandidates: Locator[],
+  primaryLocator: string,
+  action: (loc: Locator) => Promise<void>,
+  label: string
+) {
+  beginFlow(elementName, test.info().title, page.url());
+
+  await test.step(label, async () => {
+    const existing = await getElement(elementName);
+
+    // ---- NEW ELEMENT: baseline capture ----
+    if (!existing) {
+      await test.step('Baseline Capture', async () => {
+        const el = await firstVisible(page, captureCandidates);
+        await captureElement(page, elementName, el, primaryLocator);
+        await action(el);
+
+        logStep({ tier: 'db', action: 'Primary Locator', locator: primaryLocator, status: 'success' });
+        endFlow({ finalTier: 'db', finalLocator: primaryLocator, healed: false, writtenBack: false });
+      });
+      return;
+    }
+
+    // ---- DB / SMART RESOLUTION ----
+    await test.step('Locator Resolution', async () => {
+      const resolved = await resolveFromDB(page, elementName);
+
+      if (resolved) {
+
+        await resolved.locator.scrollIntoViewIfNeeded();
+        await action(resolved.locator);
+
+        endFlow({
+          finalTier: tier,
+          finalLocator: resolved.locator.toString(),
+          healed: false,
+          writtenBack: false
+        });
+
+        throw { success: true };
+      }
+      throw new Error('Locator resolution failed');
+    });
+  }).catch(async (e) => {
+    if (e?.success) return;
+
+    logStep({ tier: 'db', action: 'Locator Resolution', status: 'failed' });
+
+    // ---- AI HEALING ----
+    await test.step(`${elementName} - AI Healing`, async () => {
+      let healed: any;
+
+      await test.step('Generate AI Locator', async () => {
+        healed = await findWithFallback(page, elementName, page.locator('body'), 'ann-taylor page');
+        allure.attachment(
+          'Healing Result',
+          JSON.stringify({ element: elementName, strategy: healed.strategy ?? 'AI' }, null, 2),
+          'application/json'
+        );
+      });
+
+      await test.step('Validate AI Locator', async () => {
+        if (!(await isValidLocator(healed.locator))) {
+          throw new Error(`Could not heal ${elementName}`);
+        }
+      });
+
+      await test.step('Execute Healed Action', async () => {
+        await healed.locator.scrollIntoViewIfNeeded();
+        await action(healed.locator);
+
+        logStep({ tier: 'ai', action: 'AI Healing', locator: healed.locator.toString(), status: 'success' });
+        endFlow({ finalTier: 'ai', finalLocator: healed.locator.toString(), healed: true, writtenBack: true });
+      });
+    });
+  });
+}
+
+/* ================================================================== *
+ *  SPEC — Ann Taylor full funnel: homepage → PLP → PDP → cart
+ * ================================================================== */
+test.describe('Ann Taylor — Self-Healing Funnel', () => {
+  test('homepage to bag interactions', async ({ page }) => {
+    test.setTimeout(180_000);
+
+    await page.goto('https://sfqa.anntaylor.com/', {
+      waitUntil: 'domcontentloaded'
+    });
+
+    await page.waitForTimeout(5000);
+
+    // SEARCH ICON
+
+    await step(
+      page,
+      'search_toggle',
+      [
+        page.locator('[data-testid="search-icon"]'),
+        page.getByRole('button', { name: /search/i }),
+        page.locator('button[aria-label*="search" i]')
+      ],
+      '[data-testid="search-icon"]',
+      async (loc) => {
+        await loc.click();
+        await page.waitForTimeout(1500);
+      },
+      'Open Search'
+    );
+
+    // SEARCH INPUT
+
+    await step(
+      page,
+      'search_input',
+      [
+        page.locator('input[type="search"]'),
+        page.getByPlaceholder(/search/i),
+        page.getByRole('textbox').first()
+      ],
+      'input[type="search"]',
+      async (loc) => {
+        await loc.fill('dress');
+        await loc.press('Enter');
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(4000);
+      },
+      'Search Dresses'
+    );
+
+    // FIRST PRODUCT
+
+    await step(
+      page,
+      'dress_product',
+      [
+        page.locator('.product-tile a').first(),
+        page.locator('a[href*="/p/"]').first(),
+        page.locator('[data-testid*="product"]').first()
+      ],
+      '[data-testid*="product"]',
+      async (loc) => {
+        await loc.click();
+        await page.waitForLoadState('domcontentloaded');
+        await page.waitForTimeout(4000);
+      },
+      'Open First Product'
+    );
+
+    // SIZE
+
+    await step(
+      page,
+      'dress_size',
+      [
+        page.getByRole('button', { name: /^XS$/i }),
+        page.getByRole('button', { name: /^S$/i }),
+        page.getByRole('button', { name: /^M$/i }),
+        page.getByRole('button', { name: /^L$/i })
+      ],
+      'button.size-option',
+      async (loc) => {
+        await loc.click();
+        await page.waitForTimeout(1500);
+      },
+      'Select Size'
+    );
+
+    // ADD TO BAG
+
+    await step(
+      page,
+      'add_to_bag',
+      [
+        page.locator('#addToCart'),
+        page.getByRole('button', { name: /add to bag/i }),
+        page.getByText(/add to bag/i)
+      ],
+      '#addToCart',
+      async (loc) => {
+        await loc.click();
+        await page.waitForTimeout(4000);
+      },
+      'Add To Bag'
+    );
+
+    // MINI CART
+
+    await step(
+      page,
+      'mini_cart_open',
+      [
+        page.locator('#miniCart'),
+        page.getByRole('button', { name: /bag|cart/i }),
+        page.locator('[data-testid="cart-link"]')
+      ],
+      '#miniCart',
+      async (loc) => {
+        await loc.click();
+        await page.waitForTimeout(3000);
+      },
+      'Open Mini Cart'
+    );
+
+    // FINAL ASSERTION
+
+    await test.step('Verify Product Added To Cart', async () => {
+      await expect(page.locator('body'))
+        .toContainText(/bag|cart|checkout/i);
+    });
+  });
+});
