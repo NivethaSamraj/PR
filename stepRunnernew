@@ -21,6 +21,35 @@ export async function settle(page: Page, ms: number = PACE.short): Promise<void>
 }
 
 /* ------------------------------------------------------------------ *
+ *  Run mode + in-run capture guard
+ *
+ *  CAPTURE_MODE (env CAPTURE_MODE=1): a deliberate "learning" run. Every
+ *  element is captured and acted upon — DB/smart/AI resolution and healing
+ *  are never attempted. Use this for the first dry run against a fresh DB:
+ *      CAPTURE_MODE=1 npx playwright test ...
+ *  With it off, step() behaves normally (capture new elements, resolve/heal
+ *  existing ones).
+ *
+ *  capturedThisRun: even when CAPTURE_MODE is off, an element captured
+ *  earlier in THIS execution must never be re-resolved later in the same
+ *  run. Capture persists the row to the DB mid-run, which would otherwise
+ *  flip the element from "new" to "existing" and send a later evaluation
+ *  down the resolve/heal path against a navigated page (the search_input
+ *  bug). This in-memory set guarantees once-captured-stays-captured for the
+ *  duration of the run.
+ * ------------------------------------------------------------------ */
+export const CAPTURE_MODE: boolean =
+  process.env.CAPTURE_MODE === '1' ||
+  process.env.CAPTURE_MODE === 'true';
+
+const capturedThisRun = new Set<string>();
+
+/** Test hook: clear the in-run capture guard (e.g. in beforeEach). */
+export function resetCaptureGuard(): void {
+  capturedThisRun.clear();
+}
+
+/* ------------------------------------------------------------------ *
  *  Overlay selectors that intercept pointer events on Ann Taylor
  *  (EShopWorld welcome / geo modal). Centralised so both the
  *  upfront dismissal and the per-click guard use the same list.
@@ -432,8 +461,17 @@ export async function step(
     .step(label, async () => {
       const existing = await getElement(elementName);
 
-      // ---- NEW ELEMENT: baseline capture ----
-      if (!existing) {
+      // Take the capture/act path (never resolve or heal) when ANY of:
+      //  - the element is brand new (no DB row), OR
+      //  - CAPTURE_MODE is on (deliberate learning run), OR
+      //  - we already captured this element earlier in THIS run (its row was
+      //    persisted mid-run; it must not now be treated as "existing" and
+      //    sent down the resolve/heal path against a navigated page).
+      const captureOnly =
+        !existing || CAPTURE_MODE || capturedThisRun.has(elementName);
+
+      // ---- CAPTURE / ACT PATH ----
+      if (captureOnly) {
         await test.step('Baseline Capture', async () => {
           let el: Locator;
           try {
@@ -449,8 +487,28 @@ export async function step(
             );
           }
 
+          // Persist the baseline. When re-running an element that already
+          // exists (CAPTURE_MODE refresh), captureElement simply overwrites.
           await captureElement(page, elementName, el, primaryLocator);
-          await runActionGuarded(page, el, action);
+
+          // Mark as captured for the rest of this run so a later evaluation
+          // never re-resolves it.
+          capturedThisRun.add(elementName);
+
+          // The element is now captured and stored. If the ACTION fails
+          // after this point (e.g. a timing-sensitive navigation/commit),
+          // we must NOT fall through to AI healing: the row already exists,
+          // the page may have navigated, and healing would run against the
+          // wrong state. Tag the failure so step()'s catch re-throws it.
+          try {
+            await runActionGuarded(page, el, action);
+          } catch (actErr: any) {
+            if (actErr instanceof OverlayInterceptError) throw actErr;
+            throw new CaptureFailedError(
+              `"${elementName}" was captured, but its action failed: ` +
+                `${actErr?.message ?? actErr}`
+            );
+          }
 
           logStep({
             tier: 'db',
