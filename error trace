@@ -1,3 +1,13 @@
+FLOW COUNT = 2
+Found 2 flows
+Dashboard created: self-healing-output\index.html
+HTML created: self-healing-output\index.html
+
+To open last HTML report run:
+
+  npx playwright show-report
+
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> npx playwright test tests/Homepage.spec.ts --project=chrome --workers=1 --headed
 REPORTER FILE LOADED
 
 Running 1 test using 1 worker
@@ -5,7 +15,7 @@ Running 1 test using 1 worker
 Old flow files cleared
 SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
-     1 …tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › Search Dresses › Baseline Capture
+     1 ….spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › search_input - AI Healing › Generate AI Locator
 BEGIN FLOW: search_toggle
 SAVED ELEMENT: { name: 'search_toggle', hasOuterHTML: true, hasScreenshot: true }
 captured: search_toggle
@@ -15,73 +25,104 @@ FLOW COUNT: 1
 BEGIN FLOW: search_input
 SAVED ELEMENT: { name: 'search_input', hasOuterHTML: true, hasScreenshot: true }
 captured: search_input
-END FLOW
-ENDING FLOW search_input db
-FLOW COUNT: 2
-  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (3.3m)
-BEGIN FLOW: dress_product
-SAVED ELEMENT: { name: 'dress_product', hasOuterHTML: true, hasScreenshot: true }
-captured: dress_product
-END FLOW
-ENDING FLOW dress_product db
-FLOW COUNT: 3
-BEGIN FLOW: dress_size
-END FLOW
-ENDING FLOW dress_size null
-FLOW COUNT: 4
+[Test        ] ann-taylor page
+[Element     ] search_input
+[Page        ] https://sfqa.anntaylor.com/search?q=dress&lang=default
+[AI SELF-HEALING STARTED] Azure_OpenAI
+
+
+──────────────────────────────────────────────────
+ STEP 1 — DATABASE PRIMARY LOCATOR
+──────────────────────────────────────────────────
+[Trying      ] input[name="q"] >> visible=true
+ WARNING  Locator matched 0 elements
+ FAILED   DB Primary locator failed
+
+
+──────────────────────────────────────────────────
+ STEP 2 — SMART LOCATOR FALLBACK
+──────────────────────────────────────────────────
+[Strategy    ] role
+[Locator     ] getByRole('combobox', { name: 'Search : Enter Keyword or Item Number', exact: true })
+ WARNING  Locator matched 0 elements
+[Result      ] FAILED
+[Strategy    ] placeholder
+[Locator     ] getByPlaceholder('What are you looking for?', { exact: true }) >> visible=true
+ WARNING  Locator matched 0 elements
+[Result      ] FAILED
+[Strategy    ] css
+[Locator     ] input[aria-label="Search : Enter Keyword or Item Number"] >> visible=true
+ WARNING  Locator matched 0 elements
+[Result      ] FAILED
+[Strategy    ] xpath
+[Locator     ] //*[@id="Submit-search"]
+ WARNING  Locator validation failed: locator.waitFor: Timeout 3000ms exceeded.
+Call log:
+  - waiting for locator('//*[@id="Submit-search"]') to be visible
+    11 × locator resolved to hidden <input name="q" value="" type="text" autofocus="" role="combobox" id="Submit-search" autocomplete="off" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list" aria-activedescendant="" aria-owns="search-results" aria-controls="search-results" class="form-control search-field" placeholder="What are you looking for?" aria-describedby="search-assistive-text" aria-label="Search : Enter Keyword or Item Number"/>
+
+[Result      ] FAILED
+
+
+──────────────────────────────────────────────────
+ STEP 3 — AI HEALING
+──────────────────────────────────────────────────
+ AI       Collecting screenshots and DOM context
+ AI       Sending healing request to AI model
+blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
+ AI       Locator      : NO_MATCH
+ AI       Confidence   : 0
+ AI       Reason       : The search input element from the OLD screenshots and DOM is not present anywhere in the CURRENT full page screenshot or CURRENT DOM. The search bar is missing from the current page layout, so there is no equivalent element to target.
+
+
+──────────────────────────────────────────────────
+ HEALING FAILED
+──────────────────────────────────────────────────
+ FAILED   Low confidence AI response: 0
+  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.4m)
 
 
   1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 
-    Test timeout of 180000ms exceeded.
+    Error: All locator strategies including AI failed for search_input
 
-    CaptureFailedError: Baseline capture failed for "dress_size": none of the spec candidates became visible. The element may not have rendered yet, or the candidates are wrong. (firstVisible: no candidate became visible within 8000ms — aborting capture to avoid storing the wrong element)
+       at core\healing\fallBackEngine.ts:541
 
-       at core\healing\stepRunner.ts:444
-
-      442 |             // No candidate became visible for a brand-new element. Do NOT
-      443 |             // let this reach AI healing (there is no stored row to heal).
-    > 444 |             throw new CaptureFailedError(
-          |                   ^
-      445 |               `Baseline capture failed for "${elementName}": none of the ` +
-      446 |                 `spec candidates became visible. The element may not have ` +
-      447 |                 `rendered yet, or the candidates are wrong. ` +
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:444:19
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:437:9
+      539 |     });
+      540 |
+    > 541 |     throw new Error(
+          |           ^
+      542 |       `All locator strategies including AI failed for ${elementName}`
+      543 |     );
+      544 |   }
+        at findWithFallback (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\fallBackEngine.ts:541:11)
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:543:20
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:542:9
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:539:7
         at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:431:3)
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:139:5
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:51:5
 
-    attachment #3: allureattach_a58f650f-4003-44c9-abf7-6888aa5c519c_Outer HTML (text/html) ────────
+    attachment #3: allureattach_a3f203d2-aaaf-45fb-b3a3-32a93cd6ee7d_Outer HTML (text/html) ────────
     <button id="Sicon" class="search-icon-desktop ds-search-icon-desktop" type="button" aria-label="Search">
                                     <img src="/on/demandware.static/Sites-AnnTaylor-Site/-/default/dw0dbdce92/images/ds-icons/search.svg" class="ds-h-auto ds-search-icon" alt="Search-desktop">
           ...
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #8: allureattach_dda2b114-642c-48bc-a6f0-2369d71771a2_Outer HTML (text/html) ────────
+    attachment #8: allureattach_14074296-dda0-49d9-b9f4-eb1b38c86b60_Outer HTML (text/html) ────────
     <input class="form-control search-field" id="Submit-search" type="text" name="q" value="" placeholder="What are you looking for?" role="combobox" aria-describedby="search-assistive-text" aria-haspopup="listbox" aria-owns="search-results" aria-expanded="false" aria-autocomplete="list" aria-activedesc...
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #13: allureattach_0b08cc8e-0f12-4fe0-b24d-9084ab7fd8c0_Outer HTML (text/html) ───────
-    <a href="/clothing/dresses/cata000012/v-neck-ruffle-maxi-dress/857360.html?priceSort=DES" tabindex="0">
-                            
-                                <picture>
-                                    
-                                        
-                                    
-                                  ...
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #16: screenshot (image/png) ─────────────────────────────────────────────────────────
+    attachment #11: screenshot (image/png) ─────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #17: video (video/webm) ─────────────────────────────────────────────────────────────
+    attachment #12: video (video/webm) ─────────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\error-context.md
 
-    attachment #19: trace (application/zip) ────────────────────────────────────────────────────────
+    attachment #14: trace (application/zip) ────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
     Usage:
 
@@ -92,15 +133,15 @@ FLOW COUNT: 4
   1 failed
     [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 SELF HEALING REPORTER FINISHED
-Reading: flows-27944.json
-Parsed flows: 4
-FLOW COUNT = 4
-Found 4 flows
+Reading: flows-8896-1781775968340.json
+Parsed flows: 1
+Reading: flows-8896.json
+Parsed flows: 1
+FLOW COUNT = 2
+Found 2 flows
 Dashboard created: self-healing-output\index.html
 HTML created: self-healing-output\index.html
 
 To open last HTML report run:
 
   npx playwright show-report
-
-PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> 
