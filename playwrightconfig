@@ -1,39 +1,28 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
+
 import { PlaywrightTestConfig, TraceMode } from '@playwright/test';
 const { devices } = require('@playwright/test');
 
-//Report Portal configurations
-  export const RPconfig = {
+// Report Portal configurations
+export const RPconfig = {
   apiKey: '4debfd27-9504-461f-86e4-b1cb91e65dd0',
   endpoint: 'http://hypertestxcenterreportportal:4444/api/v1',
   project: 'GUIDEWIRE',
-  launch: "Sample_Run",
+  launch: 'Sample_Run',
   enabled: false,
   attributes: [
-    {
-      key: 'key',
-      value: 'value',
-    },
-    {
-      value: 'value',
-    },
+    { key: 'key', value: 'value' },
+    { value: 'value' },
   ],
-  description: "Playwright_Js_Run",
+  description: 'Playwright_Js_Run',
 };
 
-// reporter: [
-//   ['list'],
-//   ['allure-playwright'],
-//   ["./src/reporting/SelfHealingReporter.ts"]
-// ]
+// NOTE: the stray top-level `reporter: [...]` block that used to sit here has
+// been REMOVED — it was invalid (a bare property outside any object) and would
+// break the config. The real reporter wiring is `const reporters` below, which
+// is assigned to `config.reporter`.
 
-
-
-reporter: [
-  ['list'],
-  ['./src/reporting/SelfHealingReporter.ts']
-]
 const reporters: any[] = [
   ['list'],
   ['./src/reporting/SelfHealingReporter.ts'],
@@ -52,52 +41,43 @@ if (RPconfig.enabled) {
 }
 
 const config: PlaywrightTestConfig = {
-    timeout: 1 * 300 * 1000,
-    expect: {
-      timeout: 300*1000,
+  timeout: 1 * 300 * 1000,
+  expect: {
+    timeout: 300 * 1000,
+  },
+  retries: 0,
+  fullyParallel: true,
+  forbidOnly: false,
+  workers: 10,
+  use: {
+    headless: false,
+    screenshot: 'on',
+    video: 'on',
+    actionTimeout: 60 * 1000,
+    navigationTimeout: 100 * 1000,
+    trace: process.env.TRACE_VIEWER as TraceMode,
+    httpCredentials: {
+      username: 'storefront',
+      password: 'ascena123',
     },
-    retries: 0,
-    fullyParallel: true,
-    forbidOnly: false,
-    workers: 10,
-    use: {
-      
-      headless: false,
-      screenshot: 'on',
-      video: 'on',
-      actionTimeout: 60*1000,
-      navigationTimeout: 100*1000,
-      trace: process.env.TRACE_VIEWER as TraceMode,
-  httpCredentials: {
-    username: 'storefront',
-    password: 'ascena123'
-  }
-
-    },   
-    projects: [
-        {
-            name: 'chrome:latest:Windows 11@lambdatest',
-            use: {
-              viewport: { width: 1280, height: 720 }
-            }
-            },
-            {
-                name: 'chrome',
-                use: {
-                  ...devices['Desktop Chrome'], channel: 'chrome',
-                  fullscreen: true,
-                }
-              },
-        ],
-        reporter: reporters,
-        
-        
-      //   [['html',{ open: 'never' }]
-      //   ,['@reportportal/agent-js-playwright', RPconfig]
-      //   ,["allure-playwright", { detail: false ,"clean": true,"logLevel": "DEBUG","attachments": {
-      //     "enabled": false
-      // }}]],
-      //   testDir: './tests',
+  },
+  projects: [
+    {
+      name: 'chrome:latest:Windows 11@lambdatest',
+      use: {
+        viewport: { width: 1280, height: 720 },
+      },
+    },
+    {
+      name: 'chrome',
+      use: {
+        ...devices['Desktop Chrome'],
+        channel: 'chrome',
+        fullscreen: true,
+      },
+    },
+  ],
+  reporter: reporters,
 };
 
 export default config;
