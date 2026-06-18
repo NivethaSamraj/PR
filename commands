@@ -1,0 +1,1 @@
+$env:CAPTURE_MODE=1; npx playwright test tests/Homepage.spec.ts --project=chrome --workers=1 --headed
