@@ -47,25 +47,31 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
       page,
       'search_input',
       [
-        page.locator('input[type="search"]'),
-        page.getByPlaceholder(/search/i),
-        page.getByRole('textbox').first(),
+        page.locator('input[name="q"]'),
+        page.locator('input[data-search-field]'),
+        page.getByPlaceholder('What are you looking for?'),
+        page.getByRole('combobox', { name: /search/i }),
       ],
-      'input[type="search"]',
+      'input[name="q"]',
       async (loc) => {
+        // The search box only appears after the toggle opens the panel, so
+        // wait for it to actually be present before interacting/capturing.
+        await loc.waitFor({ state: 'visible', timeout: 10000 });
         await loc.click();
         await loc.fill('dress');
+
         // Enter alone only opens the suggestions dropdown on this site and
         // does NOT navigate, so we commit the search via the dropdown.
+        // Suggestions render inside #search-results (aria-owns).
         await page.waitForTimeout(1500); // let suggestions populate
 
         // Prefer a "view all results" link; fall back to first suggestion;
         // last resort is Enter in case some builds do navigate.
         const viewAll = page.getByRole('link', {
-          name: /see all|view all|all results/i,
+          name: /see all|view all|all results|view results/i,
         });
         const firstSuggestion = page
-          .locator('.suggestions a, .search-suggestions a, [class*="suggestion"] a')
+          .locator('#search-results a, #search-results [role="option"]')
           .first();
 
         if (await viewAll.first().isVisible().catch(() => false)) {
