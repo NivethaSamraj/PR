@@ -47,12 +47,16 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
       page,
       'search_input',
       [
-        page.locator('input[name="q"]'),
-        page.locator('input[data-search-field]'),
-        page.getByPlaceholder('What are you looking for?'),
-        page.getByRole('combobox', { name: /search/i }),
+        // The site renders TWO name="q" inputs (mobile + desktop twins), so a
+        // bare name/placeholder/role match resolves to 2 elements and is
+        // rejected as non-unique. Pin to the visible one; .first() guards the
+        // rest. Do NOT key on id — it is unstable across renders.
+        page.locator('input[data-search-field]:visible').first(),
+        page.locator('input[name="q"]:visible').first(),
+        page.getByPlaceholder('What are you looking for?').first(),
+        page.getByRole('combobox', { name: /search/i }).first(),
       ],
-      'input[name="q"]',
+      'input[data-search-field]:visible >> nth=0',
       async (loc) => {
         // The search box only appears after the toggle opens the panel, so
         // wait for it to actually be present before interacting/capturing.
