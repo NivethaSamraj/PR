@@ -547,14 +547,21 @@ export async function findWithFallback(
 /* ------------------------------------------------------------------ *
  *  resolveToSingle
  *
- *  Many pages (e.g. Ann Taylor's mobile + desktop search twins) render
- *  two elements that match the same accessible locator. When a locator
- *  resolves to more than one element but exactly ONE is visible, we
- *  narrow to that visible element so the action targets the right one.
- *  If the locator already resolves to a single element this is a no-op.
+ *  Narrows a locator that resolves to multiple elements down to one,
+ *  covering two cases validated by isValidLocator:
+ *    1. Twin case (e.g. Ann Taylor mobile + desktop search): several
+ *       match but exactly one is visible → .filter(visible).first()
+ *       picks the visible one.
+ *    2. Soft-match case (e.g. product card image + title + quick-view
+ *       links sharing one accessible name, all visible, all navigating
+ *       to the same PDP): several visible → .first() takes the first
+ *       visible match. isValidLocator has already logged this as a soft
+ *       match for auditability.
+ *  If the locator resolves to a single element this is effectively a
+ *  no-op (the lone match is the first visible one).
  *
- *  NOTE: this is best-effort and synchronous-safe — it returns a
- *  narrowed Locator without awaiting; the caller's action will await it.
+ *  NOTE: best-effort and synchronous-safe — returns a narrowed Locator
+ *  without awaiting; the caller's action awaits it.
  * ------------------------------------------------------------------ */
 export function resolveToSingle(locator: Locator): Locator {
   // Prefer the visible element among any twins. Playwright resolves
@@ -724,8 +731,21 @@ export async function isValidLocator(
         return true;
       }
 
+      if (visibleCount > 1) {
+        // SOFT MATCH: several visible elements share this locator. This is
+        // the product-card pattern (image link + title link + quick-view all
+        // carry the same accessible name and all navigate to the same PDP).
+        // resolveToSingle() will take .first(); we accept but flag it loudly
+        // so it is auditable in reports rather than silently passing.
+        HealingLogger.warn(
+          `Locator matched ${count} elements (${visibleCount} visible) — ` +
+            `SOFT MATCH, using .first(). Verify this is intended for this element.`
+        );
+        return true;
+      }
+
       HealingLogger.warn(
-        `Locator matched ${count} elements (${visibleCount} visible) — ambiguous`
+        `Locator matched ${count} elements (0 visible) — ambiguous, rejecting`
       );
       return false;
     }
