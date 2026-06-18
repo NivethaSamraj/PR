@@ -1,14 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { step, dismissWelcomePopup, ensureSearchPanelOpen } from '../core/healing/stepRunner';
 
-/* ================================================================== *
- *  SPEC — Ann Taylor full funnel: homepage → PLP → PDP → cart
- *
- *  All self-healing logic (capture, DB/smart resolution, AI heal,
- *  flow tracking) lives in core/healing/stepRunner. This file holds
- *  only the test scenario: the elements, their candidate locators,
- *  and the action performed on each.
- * ================================================================== */
+
 test.describe('Ann Taylor — Self-Healing Funnel', () => {
   test('homepage to bag interactions', async ({ page }) => {
     test.setTimeout(180_000);
@@ -18,15 +11,9 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
     });
     await page.waitForLoadState('domcontentloaded');
 
-    // DISMISS WELCOME POPUP
-    // The EShopWorld welcome modal (div.modalBg.welcomeBg) overlays the page
-    // and intercepts pointer events. It must be closed before any click.
-    // stepRunner also clears it again before each guarded action in case it
-    // re-fires after navigation, so this upfront call is the first line of
-    // defence rather than the only one.
+
     await dismissWelcomePopup(page);
 
-    // SEARCH ICON
     await step(
       page,
       'search_toggle',
@@ -42,20 +29,12 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
       'Open Search'
     );
 
-    // SEARCH INPUT
-    // Ensure the search panel is open first. search_input only exists/visible
-    // when the panel is open; on replay the toggle above can leave it closed,
-    // so we make the precondition explicit and idempotent here.
     await ensureSearchPanelOpen(page);
 
     await step(
       page,
       'search_input',
       [
-        // The site renders TWO name="q" inputs (mobile + desktop twins), so a
-        // bare name/placeholder/role match resolves to 2 elements and is
-        // rejected as non-unique. Pin to the visible one; .first() guards the
-        // rest. Do NOT key on id — it is unstable across renders.
         page.locator('input[data-search-field]:visible').first(),
         page.locator('input[name="q"]:visible').first(),
         page.getByPlaceholder('What are you looking for?').first(),
@@ -63,16 +42,10 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
       ],
       'input[name="q"] >> visible=true',
       async (loc) => {
-        // The search box only appears after the toggle opens the panel, so
-        // wait for it to actually be present before interacting/capturing.
         await loc.waitFor({ state: 'visible', timeout: 10000 });
         await loc.click();
         await loc.fill('dress');
 
-        // Enter alone only opens the suggestions dropdown on this site and
-        // does NOT navigate, so we commit the search via the dropdown.
-        // Suggestions render inside #search-results (aria-owns). Poll for the
-        // dropdown rather than a fixed wait, since it populates async.
         const viewAll = page.getByRole('link', {
           name: /see all|view all|all results|view results/i,
         });
@@ -80,7 +53,6 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
           .locator('#search-results a, #search-results [role="option"]')
           .first();
 
-        // Wait (up to ~3s) for a commit affordance to appear, then click it.
         const deadline = Date.now() + 3000;
         let committed = false;
         while (Date.now() < deadline && !committed) {
@@ -98,10 +70,6 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
           await loc.press('Enter').catch(() => {});
         }
 
-        // Confirm we left the homepage. The URL change is the success signal.
-        // If the dropdown commit did not navigate within a short window (the
-        // dropdown is timing-flaky), fall back to navigating directly to the
-        // known search-results URL so the funnel always proceeds.
         try {
           await page.waitForURL(/search|q=dress|Search-Show/i, { timeout: 8000 });
         } catch {
@@ -114,16 +82,13 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
         await page
           .waitForLoadState('networkidle', { timeout: 8000 })
           .catch(() => {
-            /* networkidle never settled — navigation already succeeded */
           });
       },
       'Search Dresses'
     );
 
-    // Geo/welcome modal can re-fire after the search navigation.
     await dismissWelcomePopup(page, 3000);
 
-    // FIRST PRODUCT
     await step(
       page,
       'dress_product',
@@ -140,13 +105,8 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
       'Open First Product'
     );
 
-    // Modal can re-fire again on the PDP load.
     await dismissWelcomePopup(page, 3000);
 
-    // FINAL ASSERTION
-    // The funnel verifies the homepage → search → results → product-detail
-    // path. We confirm we landed on a product detail page (URL contains the
-    // product slug / .html, and the page shows the product context).
     await test.step('Verify Product Detail Page Reached', async () => {
       await expect(page).toHaveURL(/\.html|\/clothing\/|priceSort/i);
       await expect(page.locator('body')).toContainText(/dress|add to bag|size/i);
