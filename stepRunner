@@ -21,12 +21,37 @@ export async function settle(page: Page, ms: number = PACE.short): Promise<void>
 }
 
 /* ------------------------------------------------------------------ *
+ *  Overlay selectors that intercept pointer events on Ann Taylor
+ *  (EShopWorld welcome / geo modal). Centralised so both the
+ *  upfront dismissal and the per-click guard use the same list.
+ * ------------------------------------------------------------------ */
+const OVERLAY_SELECTOR = 'div.modalBg.welcomeBg, #esw-landing-page';
+
+/* ------------------------------------------------------------------ *
+ *  Hard removal — last-resort DOM teardown of the intercepting
+ *  overlay. EShopWorld geo modals on QA often have no reliable close
+ *  control, so when graceful dismissal fails we detach the nodes and
+ *  re-enable scroll. Best-effort; never throws.
+ * ------------------------------------------------------------------ */
+async function forceRemoveOverlay(page: Page): Promise<void> {
+  await page
+    .evaluate((sel) => {
+      document.querySelectorAll(sel).forEach((el) => el.remove());
+      // Some modals lock the body; restore interaction.
+      document.documentElement.style.overflow = '';
+      document.body.style.overflow = '';
+    }, OVERLAY_SELECTOR)
+    .catch(() => {});
+}
+
+/* ------------------------------------------------------------------ *
  *  Welcome / interstitial popup dismissal
  *
  *  The Ann Taylor (EShopWorld) site shows a welcome modal whose
  *  backdrop (div.modalBg.welcomeBg) overlays the page and intercepts
  *  pointer events, causing every subsequent click to time out.
- *  This closes it if present and waits for the backdrop to detach.
+ *  This closes it if present and waits for the backdrop to detach,
+ *  falling back to hard DOM removal if graceful dismissal fails.
  *  It is best-effort: if no popup appears, it returns quickly.
  * ------------------------------------------------------------------ */
 export async function dismissWelcomePopup(
@@ -46,7 +71,8 @@ export async function dismissWelcomePopup(
 
   // Try the common close affordances in order; stop at the first that works.
   const closeCandidates: Locator[] = [
-    page.getByRole('button', { name: /close|no thanks|continue|dismiss/i }),
+    page.locator('#esw-landing-page .esw-continue, #esw-landing-page .esw-modal-close'),
+    page.getByRole('button', { name: /close|no thanks|continue|dismiss|shop/i }),
     page.locator('[aria-label*="close" i]'),
     page.locator('.modal-close, .close-button, button.close'),
   ];
@@ -66,12 +92,76 @@ export async function dismissWelcomePopup(
   await page.keyboard.press('Escape').catch(() => {});
 
   // Wait for the intercepting backdrop to actually detach.
-  await backdrop
+  const gone = await backdrop
     .first()
     .waitFor({ state: 'hidden', timeout })
-    .catch(() => {
-      console.log('Welcome popup backdrop still present after dismissal attempts');
-    });
+    .then(() => true)
+    .catch(() => false);
+
+  // Graceful dismissal failed — tear the overlay out of the DOM.
+  if (!gone) {
+    console.log('Welcome popup backdrop still present — forcing DOM removal');
+    await forceRemoveOverlay(page);
+    await backdrop
+      .first()
+      .waitFor({ state: 'hidden', timeout: 2000 })
+      .catch(() => {
+        console.log('Welcome popup backdrop STILL present after force removal');
+      });
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Click/interaction guard
+ *
+ *  These geo modals can re-fire after navigation (PLP/PDP loads),
+ *  so the overlay that was cleared upfront may reappear before a
+ *  later step's click. This wraps an action: if the overlay is
+ *  present it is cleared first, then the action runs. If the action
+ *  still fails because pointer events were intercepted, that is an
+ *  OVERLAY problem (locator was correct) — we surface it as such so
+ *  the caller does NOT mistakenly trigger AI healing.
+ * ------------------------------------------------------------------ */
+export class OverlayInterceptError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'OverlayInterceptError';
+  }
+}
+
+async function runActionGuarded(
+  page: Page,
+  loc: Locator,
+  action: (loc: Locator) => Promise<void>
+): Promise<void> {
+  // Pre-emptively clear any re-fired overlay before interacting.
+  if (await page.locator(OVERLAY_SELECTOR).first().isVisible().catch(() => false)) {
+    await dismissWelcomePopup(page, 3000);
+  }
+
+  try {
+    await action(loc);
+  } catch (err: any) {
+    const msg = String(err?.message ?? err);
+    const intercepted = /intercepts pointer events|element is not stable/i.test(msg);
+
+    if (intercepted) {
+      // Locator was fine; an overlay blocked the click. Clear and retry once.
+      await forceRemoveOverlay(page);
+      try {
+        await action(loc);
+        return;
+      } catch (retryErr: any) {
+        throw new OverlayInterceptError(
+          `Action blocked by overlay even after removal: ${String(
+            retryErr?.message ?? retryErr
+          )}`
+        );
+      }
+    }
+
+    throw err;
+  }
 }
 
 /* ------------------------------------------------------------------ *
@@ -258,7 +348,7 @@ export async function step(
         await test.step('Baseline Capture', async () => {
           const el = await firstVisible(page, captureCandidates);
           await captureElement(page, elementName, el, primaryLocator);
-          await action(el);
+          await runActionGuarded(page, el, action);
 
           logStep({
             tier: 'db',
@@ -282,7 +372,7 @@ export async function step(
 
         if (resolved) {
           await resolved.locator.scrollIntoViewIfNeeded();
-          await action(resolved.locator);
+          await runActionGuarded(page, resolved.locator, action);
 
           const finalTier = resolved.strategy === 'db-primary' ? 'db' : 'smart';
 
@@ -302,6 +392,25 @@ export async function step(
     })
     .catch(async (e: any) => {
       if (e?.success) return;
+
+      // Overlay interception means the locator was CORRECT but a popup
+      // blocked the click. AI healing cannot fix this and would waste a
+      // full timeout, so fail loudly with the real cause instead.
+      if (e instanceof OverlayInterceptError) {
+        logStep({
+          tier: 'db',
+          action: 'Action Blocked',
+          status: 'failed',
+          reason: 'Overlay intercepted pointer events',
+        });
+        endFlow({
+          finalTier: 'db',
+          finalLocator: primaryLocator,
+          healed: false,
+          writtenBack: false,
+        });
+        throw e;
+      }
 
       logStep({ tier: 'db', action: 'Locator Resolution', status: 'failed' });
 
@@ -336,7 +445,7 @@ export async function step(
 
         await test.step('Execute Healed Action', async () => {
           await healed.locator.scrollIntoViewIfNeeded();
-          await action(healed.locator);
+          await runActionGuarded(page, healed.locator, action);
 
           logStep({
             tier: 'ai',
