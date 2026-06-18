@@ -1,20 +1,11 @@
-REPORTER FILE LOADED
-
-Running 1 test using 1 worker
-
 Old flow files cleared
-SELF HEALING REPORTER STARTED
-SELF HEALING REPORTER LOADED
-     1 …or — Self-Healing Funnel › homepage to bag interactions › dress_product - AI Healing › Generate AI Locator
+     1 …lor — Self-Healing Funnel › homepage to bag interactions › search_input - AI Healing › Generate AI Locator
 [FLOW BEGIN] search_toggle — total tracked: 1
  WARNING  Locator matched 0 elements
 [FLOW END] search_toggle -> tier=smart
 [FLOW BEGIN] search_input — total tracked: 2
-[FLOW END] search_input -> tier=db
-[FLOW BEGIN] dress_product — total tracked: 3
- WARNING  Locator matched 0 elements
 [Test        ] ann-taylor page
-[Element     ] dress_product
+[Element     ] search_input
 [Page        ] https://sfqa.anntaylor.com/search?q=dress&lang=default
 [AI SELF-HEALING STARTED] Azure_OpenAI
 
@@ -22,7 +13,7 @@ SELF HEALING REPORTER LOADED
 ──────────────────────────────────────────────────
  STEP 1 — DATABASE PRIMARY LOCATOR
 ──────────────────────────────────────────────────
-[Trying      ] [data-testid*="product"]
+[Trying      ] input[name="q"] >> visible=true
  WARNING  Locator matched 0 elements
  FAILED   DB Primary locator failed
 
@@ -30,6 +21,26 @@ SELF HEALING REPORTER LOADED
 ──────────────────────────────────────────────────
  STEP 2 — SMART LOCATOR FALLBACK
 ──────────────────────────────────────────────────
+[Strategy    ] role
+[Locator     ] getByRole('combobox', { name: 'Search : Enter Keyword or Item Number', exact: true })
+ WARNING  Locator matched 0 elements
+[Result      ] FAILED
+[Strategy    ] placeholder
+[Locator     ] getByPlaceholder('What are you looking for?', { exact: true }) >> visible=true
+ WARNING  Locator matched 0 elements
+[Result      ] FAILED
+[Strategy    ] css
+[Locator     ] input[aria-label="Search : Enter Keyword or Item Number"] >> visible=true
+ WARNING  Locator matched 0 elements
+[Result      ] FAILED
+[Strategy    ] xpath
+[Locator     ] //*[@id="Submit-search"]
+ WARNING  Locator validation failed: locator.waitFor: Timeout 3000ms exceeded.
+Call log:
+  - waiting for locator('//*[@id="Submit-search"]') to be visible
+    11 × locator resolved to hidden <input name="q" value="" type="text" autofocus="" role="combobox" id="Submit-search" autocomplete="off" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list" aria-activedescendant="" aria-owns="search-results" aria-controls="search-results" class="form-control search-field" placeholder="What are you looking for?" aria-describedby="search-assistive-text" aria-label="Search : Enter Keyword or Item Number"/>
+
+[Result      ] FAILED
 
 
 ──────────────────────────────────────────────────
@@ -38,38 +49,66 @@ SELF HEALING REPORTER LOADED
  AI       Collecting screenshots and DOM context
  AI       Sending healing request to AI model
 blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
- AI       Locator      : getByRole('link', { name: /v-neck ruffle maxi dress/i })
- AI       Confidence   : 1
- AI       Reason       : The target element is the product card for the 'V-Neck Ruffle Maxi Dress'. In the CURRENT page screenshot and DOM, the product name appears as the accessible name for the link. Using getByRole('link', { name: /v-neck ruffle maxi dress/i }) is unique, stable, and reliable, as it matches the visible product name and links directly to the product details, ensuring the correct element is selected.
- WARNING  Locator matched 3 elements (3 visible) — SOFT MATCH, using .first(). Verify this is intended for this element.
+ AI       Locator      : NO_MATCH
+ AI       Confidence   : 0
+ AI       Reason       : The search input element from the OLD screenshots and DOM is not present in the CURRENT page screenshot or CURRENT DOM. The search bar is missing from the current UI, so there is no equivalent element to target.
 
 
 ──────────────────────────────────────────────────
- HEALING SUCCESS
+ HEALING FAILED
 ──────────────────────────────────────────────────
- SUCCESS  AI locator validated successfully
-[Final Locator] getByRole('link', { name: /v-neck ruffle maxi dress/i })
-[Confidence  ] 1
+ FAILED   Low confidence AI response: 0
+  ✘  1 …ome] › tests\Homepage.spec.ts:6:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.9m)
 
 
-════════════════════════════════════════════════════════════
- HEALING COMPLETED
-════════════════════════════════════════════════════════════
-  ✓  1 …ome] › tests\Homepage.spec.ts:6:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.9m)
-[FLOW END] dress_product -> tier=ai
+  1) [chrome] › tests\Homepage.spec.ts:6:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 
-  1 passed (2.0m)
-SELF HEALING REPORTER FINISHED
-Reading: flows-19596-1781808462592.json
-Parsed flows: 1
-FLOW COUNT = 1
-Found 1 flows
+    Error: All locator strategies including AI failed for search_input
+
+       at core\healing\fallBackEngine.ts:541
+
+      539 |     });
+      540 |
+    > 541 |     throw new Error(
+          |           ^
+      542 |       `All locator strategies including AI failed for ${elementName}`
+      543 |     );
+      544 |   }
+        at findWithFallback (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\fallBackEngine.ts:541:11)
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:601:20
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:600:9
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:597:7
+        at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:460:3)
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:34:5
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\video.webm
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\error-context.md
+
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
+    Usage:
+
+        npx playwright show-trace test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  1 failed
+    [chrome] › tests\Homepage.spec.ts:6:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
+Found 1 flow shard(s): flows-21580.json
+Reading: flows-21580.json -> 2 flow(s)
+FLOW COUNT = 2
 Dashboard created: self-healing-output\index.html
-HTML created: self-healing-output\index.html
+SELF HEALING REPORTER FINISHED
 
 To open last HTML report run:
 
   npx playwright show-report
 
-PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> start self-healing-output\index.html                  
 PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> 
