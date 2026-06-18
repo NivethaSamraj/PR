@@ -1,5 +1,32 @@
-<img src="/on/demandware.static/Sites-AnnTaylor-Site/-/default/dw0dbdce92/images/ds-icons/search.svg" class="ds-h-auto ds-search-icon" alt="mobileSearch-img">
+<div class="d-flex flex-column ds-size-swatch-block">
+                                
+                                    <span class="IsOosOrder" hidden="">false</span>
+                                
+
+                                <button class="ds-size-swatch js-size-button
+                                    
+                                    babySize
+                                    
+                                    
+                                    
+                                    
+                                    waitlist-disabled
+                                    NOT_AVAILABLE
+                                    
+                                  " data-url="null" data-backorder="false">
+                                    <span class="" value="null" data-attr-value="080" data-text="8">
+                                        8
+                                    </span>
+                                </button>
+
+                                    <!-- size waitlist -->
+                                    
+                                </div>
 
 
 
-<input data-search-field="search-mobile" class="form-control search-field" type="text" name="q" value="" placeholder="What are you looking for?" role="combobox" aria-describedby="search-assistive-text" aria-haspopup="listbox" aria-owns="search-results" aria-expanded="false" aria-autocomplete="list" aria-activedescendant="" aria-controls="search-results" aria-label="Search : Enter Keyword or Item Number" autocomplete="off">
+
+
+<span class="" value="https://sfqa.anntaylor.com/on/demandware.store/Sites-AnnTaylor-Site/default/Product-Variation?dwvar_851466_color=1362&amp;dwvar_851466_size=020&amp;pid=851466" data-attr-value="020" data-text="2">
+                                        2
+                                    </span>
