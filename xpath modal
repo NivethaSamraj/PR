@@ -1,5 +1,5 @@
-/html/body/wainclude/div[8]/div[1]/div/div/div[5]/div/div/button[1]
+<img src="/on/demandware.static/Sites-AnnTaylor-Site/-/default/dw0dbdce92/images/ds-icons/search.svg" class="ds-h-auto ds-search-icon" alt="mobileSearch-img">
 
 
 
-<button type="button" id="continueButton" class="esw-btn button-fancy-large" data-url="https://sfqa.anntaylor.com/on/demandware.store/Sites-AnnTaylor-Site/default/Page-SetLocale">Continue Shopping</button>
+<input data-search-field="search-mobile" class="form-control search-field" type="text" name="q" value="" placeholder="What are you looking for?" role="combobox" aria-describedby="search-assistive-text" aria-haspopup="listbox" aria-owns="search-results" aria-expanded="false" aria-autocomplete="list" aria-activedescendant="" aria-controls="search-results" aria-label="Search : Enter Keyword or Item Number" autocomplete="off">
