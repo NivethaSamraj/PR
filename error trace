@@ -5,7 +5,7 @@ Running 1 test using 1 worker
 Old flow files cleared
 SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
-     1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions
+     1 ….spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › search_input - AI Healing › Generate AI Locator
 BEGIN FLOW: search_toggle
  WARNING  Locator matched 0 elements
 END FLOW
@@ -13,14 +13,11 @@ ENDING FLOW search_toggle smart
 FLOW COUNT: 1
 BEGIN FLOW: search_input
  WARNING  Locator matched 0 elements
-END FLOW
-ENDING FLOW search_input smart
-FLOW COUNT: 2
-BEGIN FLOW: dress_product
-     1 …spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › dress_product - AI Healing › Generate AI Locator
+ WARNING  Locator matched 0 elements
+ WARNING  Locator matched 0 elements
  WARNING  Locator matched 0 elements
 [Test        ] ann-taylor page
-[Element     ] dress_product
+[Element     ] search_input
 [Page        ] https://sfqa.anntaylor.com/
 [AI SELF-HEALING STARTED] Azure_OpenAI
 
@@ -28,7 +25,7 @@ BEGIN FLOW: dress_product
 ──────────────────────────────────────────────────
  STEP 1 — DATABASE PRIMARY LOCATOR
 ──────────────────────────────────────────────────
-[Trying      ] first dress
+[Trying      ] input[type="search"]
  WARNING  Locator matched 0 elements
  FAILED   DB Primary locator failed
 
@@ -36,6 +33,18 @@ BEGIN FLOW: dress_product
 ──────────────────────────────────────────────────
  STEP 2 — SMART LOCATOR FALLBACK
 ──────────────────────────────────────────────────
+[Strategy    ] placeholder
+[Locator     ] getByPlaceholder('SIGN UP FOR EMAIL UPDATES', { exact: true })
+ WARNING  Locator matched 0 elements
+[Result      ] FAILED
+[Strategy    ] css
+[Locator     ] input[placeholder="SIGN UP FOR EMAIL UPDATES"]
+ WARNING  Locator matched 0 elements
+[Result      ] FAILED
+[Strategy    ] xpath
+[Locator     ] //input[@name="email"]
+ WARNING  Locator matched 0 elements
+[Result      ] FAILED
 
 
 ──────────────────────────────────────────────────
@@ -46,19 +55,19 @@ BEGIN FLOW: dress_product
 blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
  AI       Locator      : NO_MATCH
  AI       Confidence   : 0
- AI       Reason       : The original element is a product card for the 'Pima Cotton Crew Neck Tee' with a 'Quick View' overlay, found in a product listing carousel. In the CURRENT page screenshot and DOM, there is no visible product grid or carousel with this item; the current page is a homepage with featured banners and category links, not a product listing. Therefore, no equivalent element is present.
+ AI       Reason       : The email sign-up input with placeholder 'SIGN UP FOR EMAIL UPDATES' does not exist in the CURRENT DOM or screenshot. The element appears to have been removed from the current page layout.
 
 
 ──────────────────────────────────────────────────
  HEALING FAILED
 ──────────────────────────────────────────────────
  FAILED   Low confidence AI response: 0
-  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (59.9s)
+  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (38.1s)
 
 
   1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 
-    Error: All locator strategies including AI failed for dress_product
+    Error: All locator strategies including AI failed for search_input
 
        at core\healing\fallBackEngine.ts:541
 
@@ -74,7 +83,7 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:425:9
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:422:7
         at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:346:3)
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:67:5
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:46:5
 
     attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
@@ -97,12 +106,12 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
   1 failed
     [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 SELF HEALING REPORTER FINISHED
-Reading: flows-15144-1781769608196.json
+Reading: flows-26336-1781770203509.json
 Parsed flows: 1
-Reading: flows-15144.json
-Parsed flows: 2
-FLOW COUNT = 3
-Found 3 flows
+Reading: flows-26336.json
+Parsed flows: 1
+FLOW COUNT = 2
+Found 2 flows
 Dashboard created: self-healing-output\index.html
 HTML created: self-healing-output\index.html
 
