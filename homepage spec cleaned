@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { step } from '../core/healing/stepRunner';
+import { step, dismissWelcomePopup } from '../core/healing/stepRunner';
 
 /* ================================================================== *
  *  SPEC — Ann Taylor full funnel: homepage → PLP → PDP → cart
@@ -17,6 +17,11 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
       waitUntil: 'domcontentloaded',
     });
     await page.waitForLoadState('domcontentloaded');
+
+    // DISMISS WELCOME POPUP
+    // The EShopWorld welcome modal (div.modalBg.welcomeBg) overlays the page
+    // and intercepts pointer events. It must be closed before any click.
+    await dismissWelcomePopup(page);
 
     // SEARCH ICON
     await step(
