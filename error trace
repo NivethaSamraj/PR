@@ -1,13 +1,3 @@
-FLOW COUNT = 2
-Found 2 flows
-Dashboard created: self-healing-output\index.html
-HTML created: self-healing-output\index.html
-
-To open last HTML report run:
-
-  npx playwright show-report
-
-PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> npx playwright test tests/Homepage.spec.ts --project=chrome --workers=1 --headed
 REPORTER FILE LOADED
 
 Running 1 test using 1 worker
@@ -15,7 +5,7 @@ Running 1 test using 1 worker
 Old flow files cleared
 SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
-     1 ….spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › search_input - AI Healing › Generate AI Locator
+     1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions
 BEGIN FLOW: search_toggle
 SAVED ELEMENT: { name: 'search_toggle', hasOuterHTML: true, hasScreenshot: true }
 captured: search_toggle
@@ -25,90 +15,40 @@ FLOW COUNT: 1
 BEGIN FLOW: search_input
 SAVED ELEMENT: { name: 'search_input', hasOuterHTML: true, hasScreenshot: true }
 captured: search_input
-[Test        ] ann-taylor page
-[Element     ] search_input
-[Page        ] https://sfqa.anntaylor.com/search?q=dress&lang=default
-[AI SELF-HEALING STARTED] Azure_OpenAI
-
-
-──────────────────────────────────────────────────
- STEP 1 — DATABASE PRIMARY LOCATOR
-──────────────────────────────────────────────────
-[Trying      ] input[name="q"] >> visible=true
- WARNING  Locator matched 0 elements
- FAILED   DB Primary locator failed
-
-
-──────────────────────────────────────────────────
- STEP 2 — SMART LOCATOR FALLBACK
-──────────────────────────────────────────────────
-[Strategy    ] role
-[Locator     ] getByRole('combobox', { name: 'Search : Enter Keyword or Item Number', exact: true })
- WARNING  Locator matched 0 elements
-[Result      ] FAILED
-[Strategy    ] placeholder
-[Locator     ] getByPlaceholder('What are you looking for?', { exact: true }) >> visible=true
- WARNING  Locator matched 0 elements
-[Result      ] FAILED
-[Strategy    ] css
-[Locator     ] input[aria-label="Search : Enter Keyword or Item Number"] >> visible=true
- WARNING  Locator matched 0 elements
-[Result      ] FAILED
-[Strategy    ] xpath
-[Locator     ] //*[@id="Submit-search"]
- WARNING  Locator validation failed: locator.waitFor: Timeout 3000ms exceeded.
-Call log:
-  - waiting for locator('//*[@id="Submit-search"]') to be visible
-    11 × locator resolved to hidden <input name="q" value="" type="text" autofocus="" role="combobox" id="Submit-search" autocomplete="off" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list" aria-activedescendant="" aria-owns="search-results" aria-controls="search-results" class="form-control search-field" placeholder="What are you looking for?" aria-describedby="search-assistive-text" aria-label="Search : Enter Keyword or Item Number"/>
-
-[Result      ] FAILED
-
-
-──────────────────────────────────────────────────
- STEP 3 — AI HEALING
-──────────────────────────────────────────────────
- AI       Collecting screenshots and DOM context
- AI       Sending healing request to AI model
-blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
- AI       Locator      : NO_MATCH
- AI       Confidence   : 0
- AI       Reason       : The search input element from the OLD screenshots and DOM is not present anywhere in the CURRENT full page screenshot or CURRENT DOM. The search bar is missing from the current page layout, so there is no equivalent element to target.
-
-
-──────────────────────────────────────────────────
- HEALING FAILED
-──────────────────────────────────────────────────
- FAILED   Low confidence AI response: 0
-  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.4m)
+END FLOW
+ENDING FLOW search_input null
+FLOW COUNT: 2
+  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.3m)
 
 
   1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 
-    Error: All locator strategies including AI failed for search_input
+    CaptureFailedError: "search_input" was captured, but its action failed: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+      "domcontentloaded" event fired
+    ============================================================
 
-       at core\healing\fallBackEngine.ts:541
+       at core\healing\stepRunner.ts:507
 
-      539 |     });
-      540 |
-    > 541 |     throw new Error(
-          |           ^
-      542 |       `All locator strategies including AI failed for ${elementName}`
-      543 |     );
-      544 |   }
-        at findWithFallback (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\fallBackEngine.ts:541:11)
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:543:20
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:542:9
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:539:7
-        at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:431:3)
+      505 |           } catch (actErr: any) {
+      506 |             if (actErr instanceof OverlayInterceptError) throw actErr;
+    > 507 |             throw new CaptureFailedError(
+          |                   ^
+      508 |               `"${elementName}" was captured, but its action failed: ` +
+      509 |                 `${actErr?.message ?? actErr}`
+      510 |             );
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:507:19
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:475:9
+        at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:460:3)
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:51:5
 
-    attachment #3: allureattach_a3f203d2-aaaf-45fb-b3a3-32a93cd6ee7d_Outer HTML (text/html) ────────
+    attachment #3: allureattach_87e18f32-59e4-41f1-af88-c3eb4678e7e2_Outer HTML (text/html) ────────
     <button id="Sicon" class="search-icon-desktop ds-search-icon-desktop" type="button" aria-label="Search">
                                     <img src="/on/demandware.static/Sites-AnnTaylor-Site/-/default/dw0dbdce92/images/ds-icons/search.svg" class="ds-h-auto ds-search-icon" alt="Search-desktop">
           ...
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #8: allureattach_14074296-dda0-49d9-b9f4-eb1b38c86b60_Outer HTML (text/html) ────────
+    attachment #8: allureattach_a15f2230-e419-4d15-b35d-a46c14833eda_Outer HTML (text/html) ────────
     <input class="form-control search-field" id="Submit-search" type="text" name="q" value="" placeholder="What are you looking for?" role="combobox" aria-describedby="search-assistive-text" aria-haspopup="listbox" aria-owns="search-results" aria-expanded="false" aria-autocomplete="list" aria-activedesc...
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
@@ -133,10 +73,8 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
   1 failed
     [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 SELF HEALING REPORTER FINISHED
-Reading: flows-8896-1781775968340.json
-Parsed flows: 1
-Reading: flows-8896.json
-Parsed flows: 1
+Reading: flows-27128.json
+Parsed flows: 2
 FLOW COUNT = 2
 Found 2 flows
 Dashboard created: self-healing-output\index.html
@@ -145,3 +83,5 @@ HTML created: self-healing-output\index.html
 To open last HTML report run:
 
   npx playwright show-report
+
+PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> 
