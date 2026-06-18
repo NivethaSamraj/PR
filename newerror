@@ -1,25 +1,21 @@
-REPORTER FILE LOADED
-
 Running 1 test using 1 worker
 
 Old flow files cleared
 SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
-     1 …tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › Search Dresses › Baseline Capture
+     1 …Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › Open First Product › Locator Resolution
 BEGIN FLOW: search_toggle
  WARNING  Locator matched 0 elements
 END FLOW
 ENDING FLOW search_toggle smart
 FLOW COUNT: 1
 BEGIN FLOW: search_input
-SAVED ELEMENT: { name: 'search_input', hasOuterHTML: true, hasScreenshot: true }
-captured: search_input
 END FLOW
 ENDING FLOW search_input db
 FLOW COUNT: 2
-     1 …spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › dress_product - AI Healing › Generate AI Locator
 BEGIN FLOW: dress_product
  WARNING  Locator matched 0 elements
+     1 …spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › dress_product - AI Healing › Generate AI Locator
 [Test        ] ann-taylor page
 [Element     ] dress_product
 [Page        ] https://sfqa.anntaylor.com/search?q=dress&lang=default
@@ -45,17 +41,17 @@ BEGIN FLOW: dress_product
  AI       Collecting screenshots and DOM context
  AI       Sending healing request to AI model
 blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
- AI       Locator      : getByRole('link', { name: /V-Neck Ruffle Maxi Dress/i })
+ AI       Locator      : getByRole('link', { name: /v-neck ruffle maxi dress/i })
  AI       Confidence   : 1
- AI       Reason       : The target element is the product card for the 'V-Neck Ruffle Maxi Dress'. In the CURRENT screenshot and DOM, this product is visually and structurally present with the same name. The link element for this product uses the accessible name 'V-Neck Ruffle Maxi Dress', which is unique among the search results. This locator is stable, reliable, and uniquely identifies the element.
- WARNING  Locator validation failed: locator.count: Unsupported token "{" while parsing css selector "getByRole('link', { name: /V-Neck Ruffle Maxi Dress/i })". Did you mean to CSS.escape it?
+ AI       Reason       : The target element is the product card for 'V-Neck Ruffle Maxi Dress'. In the CURRENT screenshot and DOM, the product title appears as the accessible name for the link. This is unique and stable for this product, and matches the visual and structural context from the old element.
+ WARNING  Locator matched 3 elements (3 visible) — ambiguous
 
 
 ──────────────────────────────────────────────────
  HEALING FAILED
 ──────────────────────────────────────────────────
  FAILED   AI locator is not valid on current page
-  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.1m)
+  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.0m)
 
 
   1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
@@ -78,21 +74,17 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
         at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:352:3)
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:100:5
 
-    attachment #3: allureattach_2cecc277-20c4-422f-a5d9-28f9d167abb7_Outer HTML (text/html) ────────
-    <input class="form-control search-field" id="Submit-search" type="text" name="q" value="" placeholder="What are you looking for?" role="combobox" aria-describedby="search-assistive-text" aria-haspopup="listbox" aria-owns="search-results" aria-expanded="false" aria-autocomplete="list" aria-activedesc...
-    ────────────────────────────────────────────────────────────────────────────────────────────────
-
-    attachment #6: screenshot (image/png) ──────────────────────────────────────────────────────────
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #7: video (video/webm) ──────────────────────────────────────────────────────────────
+    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\error-context.md
 
-    attachment #9: trace (application/zip) ─────────────────────────────────────────────────────────
+    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
     Usage:
 
@@ -103,9 +95,9 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
   1 failed
     [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 SELF HEALING REPORTER FINISHED
-Reading: flows-9224-1781772935254.json
+Reading: flows-9272-1781773306286.json
 Parsed flows: 1
-Reading: flows-9224.json
+Reading: flows-9272.json
 Parsed flows: 2
 FLOW COUNT = 3
 Found 3 flows
