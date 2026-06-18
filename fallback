@@ -124,7 +124,7 @@ export async function findWithFallback(
       });
 
       return {
-        locator: dbPrimary,
+        locator: resolveToSingle(dbPrimary),
         usedStrategy: 'db-primary',
       };
     }
@@ -265,7 +265,7 @@ export async function findWithFallback(
       });
 
       return {
-        locator: built,
+        locator: resolveToSingle(built),
         usedStrategy: key,
       };
     }
@@ -493,7 +493,7 @@ export async function findWithFallback(
       });
 
       return {
-        locator: aiLocator,
+        locator: resolveToSingle(aiLocator),
         usedStrategy: 'AI',
       };
     }
@@ -544,68 +544,55 @@ export async function findWithFallback(
   }
 }
 
+/* ------------------------------------------------------------------ *
+ *  resolveToSingle
+ *
+ *  Many pages (e.g. Ann Taylor's mobile + desktop search twins) render
+ *  two elements that match the same accessible locator. When a locator
+ *  resolves to more than one element but exactly ONE is visible, we
+ *  narrow to that visible element so the action targets the right one.
+ *  If the locator already resolves to a single element this is a no-op.
+ *
+ *  NOTE: this is best-effort and synchronous-safe — it returns a
+ *  narrowed Locator without awaiting; the caller's action will await it.
+ * ------------------------------------------------------------------ */
+export function resolveToSingle(locator: Locator): Locator {
+  // Prefer the visible element among any twins. Playwright resolves
+  // :visible filtering lazily at action time, so this is safe to return.
+  return locator.filter({ visible: true }).first();
+}
+
 export function buildLocator(page: Page, locatorStr: string) {
   try {
 
-    // CSS
-    if (
-      locatorStr.startsWith("#") ||
-      locatorStr.startsWith(".") ||
-      locatorStr.startsWith("[")
-    ) {
-      return page.locator(locatorStr);
+    // ============================================================
+    // PLAYWRIGHT-STYLE SELECTOR SUFFIXES (handle FIRST so they win
+    // regardless of the leading character)
+    //   - "<sel> >> nth=N"  → page.locator(sel).nth(N)
+    //   - "<sel> >> visible=true" → page.locator(sel) + visible filter
+    //   - "<sel>:visible"   → narrow to the visible match
+    // These cannot be passed straight to page.locator as raw CSS,
+    // which is why the old parser matched 0 elements for them.
+    // ============================================================
+    const nthMatch = locatorStr.match(/^(.*?)\s*>>\s*nth=(\d+)\s*$/i);
+    if (nthMatch) {
+      const base = nthMatch[1].trim();
+      const idx = parseInt(nthMatch[2], 10);
+      return buildBaseLocator(page, base).nth(idx);
     }
 
-    // XPath
-    if (
-      locatorStr.startsWith("//") ||
-      locatorStr.startsWith("(//")
-    ) {
-      return page.locator(`xpath=${locatorStr}`);
+    const visibleEngineMatch = locatorStr.match(/^(.*?)\s*>>\s*visible=true\s*$/i);
+    if (visibleEngineMatch) {
+      const base = visibleEngineMatch[1].trim();
+      return buildBaseLocator(page, base).filter({ visible: true }).first();
     }
 
-    // getByRole
-    const roleMatch = locatorStr.match(
-      /getByRole\('([^']+)'\s*,\s*\{\s*name:\s*'([^']+)'/
-    );
-
-    if (roleMatch) {
-      return page.getByRole(
-        roleMatch[1] as any,
-        { name: roleMatch[2] }
-      );
+    if (/:visible\s*$/i.test(locatorStr)) {
+      const base = locatorStr.replace(/:visible\s*$/i, '').trim();
+      return buildBaseLocator(page, base).filter({ visible: true }).first();
     }
 
-    // getByText
-    const textMatch = locatorStr.match(
-      /getByText\('([^']+)'/
-    );
-
-    if (textMatch) {
-      return page.getByText(textMatch[1]);
-    }
-
-    // getByLabel
-    const labelMatch = locatorStr.match(
-      /getByLabel\('([^']+)'/
-    );
-
-    if (labelMatch) {
-      return page.getByLabel(labelMatch[1]);
-    }
-
-    // getByPlaceholder
-    const placeholderMatch = locatorStr.match(
-      /getByPlaceholder\('([^']+)'/
-    );
-
-    if (placeholderMatch) {
-      return page.getByPlaceholder(
-        placeholderMatch[1]
-      );
-    }
-
-    return page.locator(locatorStr);
+    return buildBaseLocator(page, locatorStr);
 
   } catch (err) {
     console.log(
@@ -616,7 +603,80 @@ export function buildLocator(page: Page, locatorStr: string) {
   }
 }
 
-// Validate locator safely
+/* ------------------------------------------------------------------ *
+ *  buildBaseLocator — the original locator-string parser, unchanged in
+ *  behaviour, factored out so the suffix handling above can reuse it.
+ * ------------------------------------------------------------------ */
+function buildBaseLocator(page: Page, locatorStr: string): Locator {
+
+  // CSS
+  if (
+    locatorStr.startsWith("#") ||
+    locatorStr.startsWith(".") ||
+    locatorStr.startsWith("[")
+  ) {
+    return page.locator(locatorStr);
+  }
+
+  // XPath
+  if (
+    locatorStr.startsWith("//") ||
+    locatorStr.startsWith("(//")
+  ) {
+    return page.locator(`xpath=${locatorStr}`);
+  }
+
+  // getByRole
+  const roleMatch = locatorStr.match(
+    /getByRole\('([^']+)'\s*,\s*\{\s*name:\s*'([^']+)'/
+  );
+
+  if (roleMatch) {
+    return page.getByRole(
+      roleMatch[1] as any,
+      { name: roleMatch[2] }
+    );
+  }
+
+  // getByText
+  const textMatch = locatorStr.match(
+    /getByText\('([^']+)'/
+  );
+
+  if (textMatch) {
+    return page.getByText(textMatch[1]);
+  }
+
+  // getByLabel
+  const labelMatch = locatorStr.match(
+    /getByLabel\('([^']+)'/
+  );
+
+  if (labelMatch) {
+    return page.getByLabel(labelMatch[1]);
+  }
+
+  // getByPlaceholder
+  const placeholderMatch = locatorStr.match(
+    /getByPlaceholder\('([^']+)'/
+  );
+
+  if (placeholderMatch) {
+    return page.getByPlaceholder(
+      placeholderMatch[1]
+    );
+  }
+
+  return page.locator(locatorStr);
+}
+
+// Validate locator safely.
+//
+// A locator is VALID when it resolves to exactly one element, OR when
+// it resolves to several but exactly one of them is visible (the common
+// "mobile + desktop twin" case). In the latter case the caller narrows
+// to the visible element via resolveToSingle(), so validation must not
+// reject it outright the way the old count>1 check did.
 export async function isValidLocator(
   locator: Locator
 ): Promise<boolean> {
@@ -632,8 +692,19 @@ export async function isValidLocator(
     }
 
     if (count > 1) {
+      // Count how many of the matches are visible.
+      const visibleCount = await countVisible(locator, count);
+
+      if (visibleCount === 1) {
+        HealingLogger.info(
+          'Disambiguation',
+          `Locator matched ${count} elements but exactly 1 is visible — accepting visible match`
+        );
+        return true;
+      }
+
       HealingLogger.warn(
-        `Locator matched ${count} elements`
+        `Locator matched ${count} elements (${visibleCount} visible) — ambiguous`
       );
       return false;
     }
@@ -654,6 +725,22 @@ export async function isValidLocator(
     return false;
   }
 }
+
+/* ------------------------------------------------------------------ *
+ *  countVisible — how many of the N matched elements are visible.
+ * ------------------------------------------------------------------ */
+async function countVisible(locator: Locator, count: number): Promise<number> {
+  let visible = 0;
+  for (let i = 0; i < count; i++) {
+    try {
+      if (await locator.nth(i).isVisible()) visible++;
+    } catch {
+      /* ignore individual probe errors */
+    }
+  }
+  return visible;
+}
+
 function escapeRegex(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
