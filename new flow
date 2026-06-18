@@ -9,18 +9,24 @@ import path from 'path';
  *  The self-healing reporter reads the per-worker JSON file(s) this writes
  *  and merges them into self-healing-output/index.html.
  *
- *  FIXES TWO BUGS
- *  --------------
- *  1. "Only 1 flow parsed" — the previous tracker wrote a NEW timestamped
- *     file on each flush (flows-<pid>-<timestamp>.json) OR overwrote a single
- *     file, so the reporter (reading one file) saw only the last element.
- *     We now use ONE stable file per worker (flows-<pid>.json) and rewrite it
- *     with the FULL set of flows on every endFlow, so every completed element
- *     persists.
- *  2. "Select Product twice" — flows are keyed by elementName and upserted,
- *     so an element evaluated more than once in a run yields exactly one row.
+ *  WHY "FLOW COUNT = 1" HAPPENED
+ *  -----------------------------
+ *  Flows only reached disk when endFlow() ran. If an element took a code
+ *  path in step() that threw before endFlow (e.g. the resolve path throwing
+ *  inside runActionGuarded, or AI healing failing), that element was never
+ *  written — so only the one element that completed cleanly (dress_product)
+ *  appeared.
  *
- *  Keep FLOW_DIR / filename in sync with selfHealingReporter.ts.
+ *  FIX: every element is persisted the instant beginFlow() runs, and again
+ *  on every logStep() and endFlow(). The file therefore contains EVERY
+ *  element that step() even started, with whatever tier attempts it logged,
+ *  regardless of whether endFlow was reached. Elements that never finish
+ *  simply show finalTier=null (UNRESOLVED) instead of vanishing.
+ *
+ *  De-dup: flows are keyed by elementName and upserted, so an element
+ *  evaluated twice yields one row (latest wins), killing duplicate rows.
+ *
+ *  Keep FLOW_DIR / filename in sync with SelfHealingReporter.ts.
  * ------------------------------------------------------------------ */
 
 export type FlowTier = 'db' | 'smart' | 'ai';
@@ -53,8 +59,6 @@ export const FLOW_DIR = path.join(process.cwd(), 'self-healing-output', 'flows')
 const FLOW_FILE = path.join(FLOW_DIR, `flows-${process.pid}.json`);
 
 // Authoritative in-memory store for THIS worker, keyed by elementName.
-// The JSON file is always a serialization of this map's values, so the file
-// can never end up with fewer flows than were completed.
 const flows = new Map<string, Flow>();
 let current: Flow | null = null;
 
@@ -64,11 +68,19 @@ function ensureDir(): void {
 
 /** Rewrite this worker's file with the FULL current flow set. */
 function flushToDisk(): void {
-  ensureDir();
-  const payload = Array.from(flows.values());
-  fs.writeFileSync(FLOW_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+  try {
+    ensureDir();
+    const payload = Array.from(flows.values());
+    fs.writeFileSync(FLOW_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+  } catch (e) {
+    console.warn(`flowTracker: failed to write ${FLOW_FILE}: ${String(e)}`);
+  }
 }
 
+/* ------------------------------------------------------------------ *
+ *  beginFlow — start (or restart) the flow for an element AND persist
+ *  it immediately, so the element is on disk even if it never finishes.
+ * ------------------------------------------------------------------ */
 export function beginFlow(elementName: string, testTitle: string, url: string): void {
   const flow: Flow = {
     elementName,
@@ -84,32 +96,53 @@ export function beginFlow(elementName: string, testTitle: string, url: string): 
   };
   flows.set(elementName, flow); // upsert by elementName — never duplicates
   current = flow;
-  flushToDisk();                // persist immediately so in-progress flows show too
+  flushToDisk();                // <-- persist on START (key fix)
+  console.log(`[FLOW BEGIN] ${elementName} — total tracked: ${flows.size}`);
 }
 
+/* ------------------------------------------------------------------ *
+ *  logStep — append a tier attempt; tolerate being called with no active
+ *  flow by attaching to the most recently-started flow instead of dropping.
+ * ------------------------------------------------------------------ */
 export function logStep(step: FlowStep): void {
-  if (!current) {
-    console.warn(`flowTracker.logStep: no active flow for ${JSON.stringify(step)}`);
+  let target = current;
+  if (!target) {
+    // No active flow (e.g. logStep fired after endFlow). Attach to the most
+    // recent flow so the attempt is never silently lost.
+    const all = Array.from(flows.values());
+    target = all[all.length - 1] ?? null;
+  }
+  if (!target) {
+    console.warn(`flowTracker.logStep: no flow to attach ${JSON.stringify(step)}`);
     return;
   }
-  current.steps.push(step);
-  flushToDisk();
+  target.steps.push(step);
+  flushToDisk();                // persist on every step
 }
 
+/* ------------------------------------------------------------------ *
+ *  endFlow — finalise the current flow AND persist. Safe if no active flow.
+ * ------------------------------------------------------------------ */
 export function endFlow(result: {
   finalTier: FlowTier | null;
   finalLocator: string | null;
   healed: boolean;
   writtenBack: boolean;
 }): void {
-  if (!current) return;
+  if (!current) {
+    // Defensive: finalise the most-recent unfinished flow if one exists.
+    const all = Array.from(flows.values());
+    current = all.reverse().find((f) => f.endedAt === null) ?? null;
+    if (!current) return;
+  }
   current.finalTier = result.finalTier;
   current.finalLocator = result.finalLocator;
   current.healed = result.healed;
   current.writtenBack = result.writtenBack;
   current.endedAt = Date.now();
+  console.log(`[FLOW END] ${current.elementName} -> tier=${result.finalTier ?? 'null'}`);
   current = null;
-  flushToDisk();                // FULL set persisted — every completed flow survives
+  flushToDisk();
 }
 
 export function getFlows(): Flow[] {
