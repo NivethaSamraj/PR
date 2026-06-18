@@ -21,6 +21,60 @@ export async function settle(page: Page, ms: number = PACE.short): Promise<void>
 }
 
 /* ------------------------------------------------------------------ *
+ *  Welcome / interstitial popup dismissal
+ *
+ *  The Ann Taylor (EShopWorld) site shows a welcome modal whose
+ *  backdrop (div.modalBg.welcomeBg) overlays the page and intercepts
+ *  pointer events, causing every subsequent click to time out.
+ *  This closes it if present and waits for the backdrop to detach.
+ *  It is best-effort: if no popup appears, it returns quickly.
+ * ------------------------------------------------------------------ */
+export async function dismissWelcomePopup(
+  page: Page,
+  timeout: number = 8000
+): Promise<void> {
+  const backdrop = page.locator('div.modalBg.welcomeBg');
+
+  // If the backdrop never shows, there is nothing to dismiss.
+  const appeared = await backdrop
+    .first()
+    .waitFor({ state: 'visible', timeout })
+    .then(() => true)
+    .catch(() => false);
+
+  if (!appeared) return;
+
+  // Try the common close affordances in order; stop at the first that works.
+  const closeCandidates: Locator[] = [
+    page.getByRole('button', { name: /close|no thanks|continue|dismiss/i }),
+    page.locator('[aria-label*="close" i]'),
+    page.locator('.modal-close, .close-button, button.close'),
+  ];
+
+  for (const candidate of closeCandidates) {
+    try {
+      if (await candidate.first().isVisible()) {
+        await candidate.first().click({ timeout: 3000 });
+        break;
+      }
+    } catch {
+      /* try the next close affordance */
+    }
+  }
+
+  // As a fallback, press Escape (many modals listen for it).
+  await page.keyboard.press('Escape').catch(() => {});
+
+  // Wait for the intercepting backdrop to actually detach.
+  await backdrop
+    .first()
+    .waitFor({ state: 'hidden', timeout })
+    .catch(() => {
+      console.log('Welcome popup backdrop still present after dismissal attempts');
+    });
+}
+
+/* ------------------------------------------------------------------ *
  *  First-visible candidate resolver (capture phase)
  * ------------------------------------------------------------------ */
 export async function firstVisible(
