@@ -7,15 +7,14 @@ SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
      1 ….spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › search_input - AI Healing › Generate AI Locator
 BEGIN FLOW: search_toggle
- WARNING  Locator matched 0 elements
+SAVED ELEMENT: { name: 'search_toggle', hasOuterHTML: true, hasScreenshot: true }
+captured: search_toggle
 END FLOW
-ENDING FLOW search_toggle smart
+ENDING FLOW search_toggle db
 FLOW COUNT: 1
 BEGIN FLOW: search_input
- WARNING  Locator matched 0 elements
- WARNING  Locator matched 0 elements
- WARNING  Locator matched 0 elements
- WARNING  Locator matched 0 elements
+SAVED ELEMENT: { name: 'search_input', hasOuterHTML: true, hasScreenshot: true }
+captured: search_input
 [Test        ] ann-taylor page
 [Element     ] search_input
 [Page        ] https://sfqa.anntaylor.com/
@@ -35,67 +34,59 @@ BEGIN FLOW: search_input
 ──────────────────────────────────────────────────
 [Strategy    ] placeholder
 [Locator     ] getByPlaceholder('SIGN UP FOR EMAIL UPDATES', { exact: true })
- WARNING  Locator matched 0 elements
-[Result      ] FAILED
-[Strategy    ] css
-[Locator     ] input[placeholder="SIGN UP FOR EMAIL UPDATES"]
- WARNING  Locator matched 0 elements
-[Result      ] FAILED
-[Strategy    ] xpath
-[Locator     ] //input[@name="email"]
- WARNING  Locator matched 0 elements
-[Result      ] FAILED
+[Result      ] SUCCESS
+ SUCCESS  Element healed using placeholder
 
 
-──────────────────────────────────────────────────
- STEP 3 — AI HEALING
-──────────────────────────────────────────────────
- AI       Collecting screenshots and DOM context
- AI       Sending healing request to AI model
-blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
- AI       Locator      : NO_MATCH
- AI       Confidence   : 0
- AI       Reason       : The email sign-up input with placeholder 'SIGN UP FOR EMAIL UPDATES' does not exist in the CURRENT DOM or screenshot. The element appears to have been removed from the current page layout.
-
-
-──────────────────────────────────────────────────
- HEALING FAILED
-──────────────────────────────────────────────────
- FAILED   Low confidence AI response: 0
-  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (38.1s)
+════════════════════════════════════════════════════════════
+ HEALING COMPLETED
+════════════════════════════════════════════════════════════
+  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.1m)
 
 
   1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 
-    Error: All locator strategies including AI failed for search_input
+    TimeoutError: page.waitForURL: Timeout 15000ms exceeded.
+    =========================== logs ===========================
+    waiting for navigation until "load"
+    ============================================================
 
-       at core\healing\fallBackEngine.ts:541
-
-      539 |     });
-      540 |
-    > 541 |     throw new Error(
-          |           ^
-      542 |       `All locator strategies including AI failed for ${elementName}`
-      543 |     );
-      544 |   }
-        at findWithFallback (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\fallBackEngine.ts:541:11)
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:426:20
-        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:425:9
+      78 |
+      79 |         // Confirm we actually left the homepage for a results/PLP page.
+    > 80 |         await page.waitForURL(/search|q=dress|Search-Show/i, { timeout: 15000 });
+         |                    ^
+      81 |         await page.waitForLoadState('networkidle');
+      82 |       },
+      83 |       'Search Dresses'
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:80:20
+        at runActionGuarded (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:147:5)
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:452:11
+        at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:450:9
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:422:7
         at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:346:3)
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:46:5
 
-    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    attachment #3: allureattach_ace54c6e-e10a-44d3-af73-251cf7dd15b6_Outer HTML (text/html) ────────
+    <button id="Sicon" class="search-icon-desktop ds-search-icon-desktop" type="button" aria-label="Search">
+                                    <img src="/on/demandware.static/Sites-AnnTaylor-Site/-/default/dw0dbdce92/images/ds-icons/search.svg" class="ds-h-auto ds-search-icon" alt="Search-desktop">
+          ...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #8: allureattach_2307201c-c946-41c3-bb69-e0c4c45defef_Outer HTML (text/html) ────────
+    <input id="bluecoreEmailCaptureEmail" placeholder="SIGN UP FOR EMAIL UPDATES" name="email" aria-invalid="false" type="email" required="" class="email_capture_input-16412770819280-input email_capture_input-16412770819280-input-d5 bluecoreEmailCaptureEmail bluecoreEmailCaptureInvalidBorder email_captu...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #12: screenshot (image/png) ─────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #2: video (video/webm) ──────────────────────────────────────────────────────────────
+    attachment #13: video (video/webm) ─────────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\error-context.md
 
-    attachment #4: trace (application/zip) ─────────────────────────────────────────────────────────
+    attachment #15: trace (application/zip) ────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
     Usage:
 
@@ -106,17 +97,11 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
   1 failed
     [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 SELF HEALING REPORTER FINISHED
-Reading: flows-26336-1781770203509.json
+Reading: flows-27440-1781770594587.json
 Parsed flows: 1
-Reading: flows-26336.json
+Reading: flows-27440.json
 Parsed flows: 1
 FLOW COUNT = 2
 Found 2 flows
 Dashboard created: self-healing-output\index.html
 HTML created: self-healing-output\index.html
-
-To open last HTML report run:
-
-  npx playwright show-report
-
-PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> 
