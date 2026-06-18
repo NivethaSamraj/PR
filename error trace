@@ -1,22 +1,19 @@
+
 Running 1 test using 1 worker
 
 Old flow files cleared
 SELF HEALING REPORTER STARTED
 SELF HEALING REPORTER LOADED
-     1 …tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › Search Dresses › Baseline Capture
+     1 ….spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › search_input - AI Healing › Generate AI Locator
 BEGIN FLOW: search_toggle
- WARNING  Locator matched 0 elements
- WARNING  Locator matched 0 elements
- WARNING  Locator matched 0 elements
- WARNING  Locator matched 0 elements
- WARNING  Locator matched 0 elements
+SAVED ELEMENT: { name: 'search_toggle', hasOuterHTML: true, hasScreenshot: true }
+captured: search_toggle
 END FLOW
-ENDING FLOW search_toggle smart
+ENDING FLOW search_toggle db
 FLOW COUNT: 1
 BEGIN FLOW: search_input
 SAVED ELEMENT: { name: 'search_input', hasOuterHTML: true, hasScreenshot: true }
 captured: search_input
-     1 ….spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions › search_input - AI Healing › Generate AI Locator
 [Test        ] ann-taylor page
 [Element     ] search_input
 [Page        ] https://sfqa.anntaylor.com/search?q=dress&lang=default
@@ -26,8 +23,8 @@ captured: search_input
 ──────────────────────────────────────────────────
  STEP 1 — DATABASE PRIMARY LOCATOR
 ──────────────────────────────────────────────────
-[Trying      ] input[name="q"]
- WARNING  Locator matched 2 elements
+[Trying      ] input[data-search-field]:visible >> nth=0
+ WARNING  Locator matched 0 elements
  FAILED   DB Primary locator failed
 
 
@@ -64,7 +61,7 @@ Call log:
 blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
  AI       Locator      : getByPlaceholder('What are you looking for?')
  AI       Confidence   : 1
- AI       Reason       : The search input in the OLD DOM had placeholder 'What are you looking for?' and role 'combobox'. In the CURRENT DOM, the input with this placeholder is still present and unique. The id, class, and structure are unchanged. This locator is stable, unique, and matches the original element.
+ AI       Reason       : The search input in the OLD element has the placeholder 'What are you looking for?', and in the CURRENT DOM this input is still present with the same placeholder. The input is visually confirmed in the CURRENT FULL PAGE SCREENSHOT at the top, matching the old location and appearance. This placeholder is unique and stable for the search input.
  WARNING  Locator matched 2 elements
 
 
@@ -72,7 +69,7 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
  HEALING FAILED
 ──────────────────────────────────────────────────
  FAILED   AI locator is not valid on current page
-  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.3m)
+  ✘  1 [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions (1.4m)
 
 
   1) [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
@@ -95,21 +92,27 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
         at step (C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\core\healing\stepRunner.ts:352:3)
         at C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion\tests\Homepage.spec.ts:46:5
 
-    attachment #3: allureattach_a19ab46f-5044-4339-b069-aa8f709e40ee_Outer HTML (text/html) ────────
+    attachment #3: allureattach_d2041c06-ae2b-429f-b40c-21e56349d486_Outer HTML (text/html) ────────
+    <button id="Sicon" class="search-icon-desktop ds-search-icon-desktop" type="button" aria-label="Search">
+                                    <img src="/on/demandware.static/Sites-AnnTaylor-Site/-/default/dw0dbdce92/images/ds-icons/search.svg" class="ds-h-auto ds-search-icon" alt="Search-desktop">
+          ...
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    attachment #8: allureattach_82733c5b-4c0d-4001-8bfc-f4d6cbd31df7_Outer HTML (text/html) ────────
     <input class="form-control search-field" id="Submit-search" type="text" name="q" value="" placeholder="What are you looking for?" role="combobox" aria-describedby="search-assistive-text" aria-haspopup="listbox" aria-owns="search-results" aria-expanded="false" aria-autocomplete="list" aria-activedesc...
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #6: screenshot (image/png) ──────────────────────────────────────────────────────────
+    attachment #11: screenshot (image/png) ─────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\test-failed-1.png
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
-    attachment #7: video (video/webm) ──────────────────────────────────────────────────────────────
+    attachment #12: video (video/webm) ─────────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\video.webm
     ────────────────────────────────────────────────────────────────────────────────────────────────
 
     Error Context: test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\error-context.md
 
-    attachment #9: trace (application/zip) ─────────────────────────────────────────────────────────
+    attachment #14: trace (application/zip) ────────────────────────────────────────────────────────
     test-results\tests-Homepage-Ann-Taylor--81f60-omepage-to-bag-interactions-chrome\trace.zip
     Usage:
 
@@ -120,9 +123,9 @@ blocks sent [ 'text', 'image_url', 'image_url', 'image_url' ]
   1 failed
     [chrome] › tests\Homepage.spec.ts:13:7 › Ann Taylor — Self-Healing Funnel › homepage to bag interactions 
 SELF HEALING REPORTER FINISHED
-Reading: flows-26384-1781771037627.json
+Reading: flows-15576-1781771959475.json
 Parsed flows: 1
-Reading: flows-26384.json
+Reading: flows-15576.json
 Parsed flows: 1
 FLOW COUNT = 2
 Found 2 flows
@@ -133,5 +136,4 @@ To open last HTML report run:
 
   npx playwright show-report
 
-PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> start self-healing-output\index.html                                         
 PS C:\Users\nivetha.samraj\Documents\Knitwell_FinalVersion> 
