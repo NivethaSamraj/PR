@@ -56,7 +56,7 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
         page.getByPlaceholder('What are you looking for?').first(),
         page.getByRole('combobox', { name: /search/i }).first(),
       ],
-      'input[data-search-field]:visible >> nth=0',
+      'input[name="q"] >> visible=true',
       async (loc) => {
         // The search box only appears after the toggle opens the panel, so
         // wait for it to actually be present before interacting/capturing.
