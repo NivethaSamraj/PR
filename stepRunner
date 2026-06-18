@@ -191,7 +191,13 @@ export async function firstVisible(
     await page.waitForTimeout(250);
   }
 
-  return candidates[0].first();
+  // None of the candidates became visible. Failing loudly here is critical:
+  // returning a fallback element risks capturing the WRONG element (e.g. a
+  // footer field) and permanently poisoning the DB row for this name.
+  throw new Error(
+    `firstVisible: no candidate became visible within ${timeout}ms — ` +
+      `aborting capture to avoid storing the wrong element`
+  );
 }
 
 /* ------------------------------------------------------------------ *
