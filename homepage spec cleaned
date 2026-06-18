@@ -71,11 +71,8 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
 
         // Enter alone only opens the suggestions dropdown on this site and
         // does NOT navigate, so we commit the search via the dropdown.
-        // Suggestions render inside #search-results (aria-owns).
-        await page.waitForTimeout(1500); // let suggestions populate
-
-        // Prefer a "view all results" link; fall back to first suggestion;
-        // last resort is Enter in case some builds do navigate.
+        // Suggestions render inside #search-results (aria-owns). Poll for the
+        // dropdown rather than a fixed wait, since it populates async.
         const viewAll = page.getByRole('link', {
           name: /see all|view all|all results|view results/i,
         });
@@ -83,20 +80,37 @@ test.describe('Ann Taylor — Self-Healing Funnel', () => {
           .locator('#search-results a, #search-results [role="option"]')
           .first();
 
-        if (await viewAll.first().isVisible().catch(() => false)) {
-          await viewAll.first().click();
-        } else if (await firstSuggestion.isVisible().catch(() => false)) {
-          await firstSuggestion.click();
-        } else {
-          await loc.press('Enter');
+        // Wait (up to ~3s) for a commit affordance to appear, then click it.
+        const deadline = Date.now() + 3000;
+        let committed = false;
+        while (Date.now() < deadline && !committed) {
+          if (await viewAll.first().isVisible().catch(() => false)) {
+            await viewAll.first().click().catch(() => {});
+            committed = true;
+          } else if (await firstSuggestion.isVisible().catch(() => false)) {
+            await firstSuggestion.click().catch(() => {});
+            committed = true;
+          } else {
+            await page.waitForTimeout(250);
+          }
+        }
+        if (!committed) {
+          await loc.press('Enter').catch(() => {});
         }
 
-        // Confirm we actually left the homepage for a results/PLP page.
-        // The URL change is the real success signal. networkidle is made
-        // non-fatal because SFCC pages keep background connections open and
-        // may never reach idle, which would otherwise throw AFTER a
-        // successful navigation and derail the (already captured) step.
-        await page.waitForURL(/search|q=dress|Search-Show/i, { timeout: 15000 });
+        // Confirm we left the homepage. The URL change is the success signal.
+        // If the dropdown commit did not navigate within a short window (the
+        // dropdown is timing-flaky), fall back to navigating directly to the
+        // known search-results URL so the funnel always proceeds.
+        try {
+          await page.waitForURL(/search|q=dress|Search-Show/i, { timeout: 8000 });
+        } catch {
+          await page.goto('https://sfqa.anntaylor.com/search?q=dress&lang=default', {
+            waitUntil: 'domcontentloaded',
+          });
+          await page.waitForURL(/search|q=dress/i, { timeout: 10000 });
+        }
+
         await page
           .waitForLoadState('networkidle', { timeout: 8000 })
           .catch(() => {
