@@ -8,21 +8,15 @@ import type {
 } from '@playwright/test/reporter';
 
 /* ------------------------------------------------------------------ *
- *  selfHealingReporter
+ *  SelfHealingReporter
  *
- *  Playwright reporter that, at run end, reads EVERY per-worker flow shard
+ *  At run end, reads EVERY per-worker flow shard
  *  (self-healing-output/flows/flows-*.json), merges them de-duplicated by
  *  elementName, and renders self-healing-output/index.html.
  *
- *  WHY THIS FIXES "only 1 element shows"
- *  -------------------------------------
- *  The previous setup read a single timestamped file, so only the last
- *  element survived. This globs ALL flows-*.json, so every element written
- *  by flowTracker.endFlow appears. De-duping by elementName also collapses
- *  any element that was evaluated twice (the "Select Product" duplicate)
- *  into one row.
- *
- *  Keep FLOW_DIR / OUT_DIR in sync with flowTracker.ts.
+ *  Pairs with flowTracker.ts, which now persists each element on beginFlow
+ *  (not only endFlow), so every element that step() starts is on disk and
+ *  therefore appears here — fixing "FLOW COUNT = 1".
  * ------------------------------------------------------------------ */
 
 type FlowTier = 'db' | 'smart' | 'ai';
@@ -64,7 +58,8 @@ function esc(s: unknown): string {
 export default class SelfHealingReporter implements Reporter {
   onBegin(_config: FullConfig, _suite: Suite): void {
     console.log('SELF HEALING REPORTER STARTED');
-    // Clear stale shards from a previous run so old elements never bleed in.
+    // Clear stale shards from a previous run. This runs in the MAIN process
+    // before any worker starts, so it never races worker writes.
     try {
       if (fs.existsSync(FLOW_DIR)) {
         for (const f of fs.readdirSync(FLOW_DIR)) {
@@ -90,24 +85,32 @@ export default class SelfHealingReporter implements Reporter {
   /** Read EVERY flows-*.json shard and merge, deduped by elementName. */
   private readAllFlows(): Flow[] {
     const byElement = new Map<string, Flow>();
-    if (!fs.existsSync(FLOW_DIR)) return [];
+    if (!fs.existsSync(FLOW_DIR)) {
+      console.warn(`Flow dir not found: ${FLOW_DIR}`);
+      return [];
+    }
 
     const files = fs
       .readdirSync(FLOW_DIR)
       .filter((f) => /^flows-.*\.json$/.test(f));
 
+    console.log(`Found ${files.length} flow shard(s): ${files.join(', ') || '(none)'}`);
+
     for (const file of files) {
       const full = path.join(FLOW_DIR, file);
       try {
-        console.log(`Reading: ${file}`);
-        const parsed = JSON.parse(fs.readFileSync(full, 'utf-8')) as Flow[];
-        console.log(`Parsed flows: ${Array.isArray(parsed) ? parsed.length : 0}`);
-        for (const flow of parsed) {
+        const raw = fs.readFileSync(full, 'utf-8').trim();
+        if (!raw) continue;
+        const parsed = JSON.parse(raw) as Flow[];
+        const arr = Array.isArray(parsed) ? parsed : [];
+        console.log(`Reading: ${file} -> ${arr.length} flow(s)`);
+        for (const flow of arr) {
           if (!flow?.elementName) continue;
-          // Last writer wins; if two shards somehow hold the same element,
-          // prefer the one that actually ended (endedAt set).
           const existing = byElement.get(flow.elementName);
-          if (!existing || (flow.endedAt ?? 0) >= (existing.endedAt ?? 0)) {
+          // Prefer the most-recently-ended copy; an ended flow beats an
+          // unfinished one for the same element.
+          const score = (f: Flow) => (f.endedAt ?? f.startedAt ?? 0);
+          if (!existing || score(flow) >= score(existing)) {
             byElement.set(flow.elementName, flow);
           }
         }
@@ -124,13 +127,12 @@ export default class SelfHealingReporter implements Reporter {
     const dbCount = flows.filter((f) => f.finalTier === 'db').length;
     const smartCount = flows.filter((f) => f.finalTier === 'smart').length;
     const aiCount = flows.filter((f) => f.finalTier === 'ai').length;
-    const unresolved = flows.filter((f) => f.finalTier === null).length;
+    const unresolved = flows.filter((f) => f.finalTier == null).length;
 
     const rows = flows
       .map((f) => {
         const tierClass = f.finalTier ?? 'unresolved';
         const tierLabel = (f.finalTier ?? 'UNRESOLVED').toUpperCase();
-
         const stepRows = (f.steps ?? [])
           .map(
             (s, i) => `
